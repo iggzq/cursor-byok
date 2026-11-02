@@ -12,6 +12,7 @@ use crate::{
     api::cursor::{
         bidi,
         proxy::{self, CursorProxy},
+        run_inference::{self, RunInferenceState},
         run_sse,
     },
     cursor::{
@@ -44,10 +45,19 @@ fn router_with_proxy(
 ) -> Router {
     let web_cache = registry.web_cache().router();
     let free_entitlements = FreeEntitlementCache::default();
+    let run_inference_state = RunInferenceState::default();
     Router::new()
         .route("/__byok-api__/healthz", get(health))
         .route("/agent.v1.AgentService/RunSSE", post(run_sse_handler))
         .route("/aiserver.v1.BidiService/BidiAppend", post(bidi_handler))
+        .route(
+            "/aiserver.v1.InferenceService/RunInferenceSSE",
+            post(run_inference::sse),
+        )
+        .route(
+            "/aiserver.v1.InferenceService/RunInferencePoll",
+            post(run_inference::poll),
+        )
         .route(
             "/aiserver.v1.AiService/AvailableDocs",
             post(compatibility::available_docs),
@@ -163,6 +173,7 @@ fn router_with_proxy(
         .layer(Extension(proxy))
         .layer(Extension(knowledge_service))
         .layer(Extension(free_entitlements))
+        .layer(Extension(run_inference_state))
         .with_state(registry)
         .merge(web_cache)
 }
@@ -228,6 +239,7 @@ async fn run_sse_handler(
 async fn bidi_handler(
     State(registry): State<TransportRegistry>,
     Extension(proxy): Extension<CursorProxy>,
+    Extension(state): Extension<RunInferenceState>,
     request: Request<Body>,
 ) -> Result<Response<Body>> {
     let (parts, body) = buffered(request).await?;
@@ -315,7 +327,7 @@ async fn bidi_handler(
             return Err(error);
         }
     };
-    match bidi::append(&registry, decoded, parent).await {
+    match bidi::append(&registry, &state, decoded, parent).await {
         Ok(_) => trace.request(
             "bidi_request",
             body,

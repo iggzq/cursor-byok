@@ -287,15 +287,18 @@ async fn client_heartbeat_returns_a_server_protocol_heartbeat() {
 
     cursor_server::api::cursor::bidi::append(
         &registry,
+        &cursor_server::api::cursor::run_inference::RunInferenceState::default(),
         cursor_server::api::cursor::bidi::DecodedAppend {
             request_id: "heartbeat-run".into(),
             // A transport heartbeat must not wait for missing application messages.
             seqno: 1,
-            message: pb::AgentClientMessage {
-                message: Some(pb::agent_client_message::Message::ClientHeartbeat(
-                    pb::ClientHeartbeat {},
-                )),
-            },
+            message: cursor_server::api::cursor::bidi::DecodedMessage::Agent(Box::new(
+                pb::AgentClientMessage {
+                    message: Some(pb::agent_client_message::Message::ClientHeartbeat(
+                        pb::ClientHeartbeat {},
+                    )),
+                },
+            )),
         },
         None,
     )
@@ -458,10 +461,13 @@ async fn queued_user_message_after_turn_ended_starts_the_next_turn() {
 
     cursor_server::api::cursor::bidi::append(
         &registry,
+        &cursor_server::api::cursor::run_inference::RunInferenceState::default(),
         cursor_server::api::cursor::bidi::DecodedAppend {
             request_id: "queued-after-turn".into(),
             seqno: append_seqno,
-            message: runtime_user_message(),
+            message: cursor_server::api::cursor::bidi::DecodedMessage::Agent(Box::new(
+                runtime_user_message(),
+            )),
         },
         None,
     )

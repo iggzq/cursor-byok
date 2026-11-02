@@ -14,6 +14,7 @@ use crate::{api::cursor::proxy, Error, Result};
 
 pub const BOOTSTRAP_STATSIG_PATH: &str = "/aiserver.v1.AnalyticsService/BootstrapStatsig";
 const AGENT_RETRIES_GATE: &str = "nal_agent_retries";
+const RUN_INFERENCE_WEBSOCKET_CLIENT_CONFIG: &str = "run_inference_websocket_client";
 const LOCAL_RULE: &str = "local_enabled";
 
 #[derive(Clone, PartialEq, Message)]
@@ -52,6 +53,7 @@ fn patch_upstream(response: proxy::BufferedResponse) -> Result<Response<Body>> {
     let mut message = BootstrapStatsigResponse::decode(payload)?;
     let mut config = serde_json::from_str::<Value>(&message.config)?;
     enable_agent_retries(&mut config)?;
+    disable_run_inference_websocket(&mut config)?;
     message.config = serde_json::to_string(&config)?;
     Ok(response.with_body(encode_unary(&message, framed)))
 }
@@ -75,6 +77,7 @@ fn local_response() -> Result<Response<Body>> {
         "time": generated_at_ms
     });
     enable_agent_retries(&mut config)?;
+    disable_run_inference_websocket(&mut config)?;
     let message = BootstrapStatsigResponse {
         config: serde_json::to_string(&config)?,
         generated_at_ms,
@@ -107,6 +110,39 @@ fn enable_agent_retries(config: &mut Value) -> Result<()> {
         .as_object_mut()
         .ok_or_else(|| Error::Protocol("Statsig feature_gates must be an object".into()))?;
     gates.insert(gate_key.clone(), enabled_gate(&gate_key));
+    Ok(())
+}
+
+fn disable_run_inference_websocket(config: &mut Value) -> Result<()> {
+    let config_key = statsig_key(config, RUN_INFERENCE_WEBSOCKET_CLIENT_CONFIG);
+    let root = config
+        .as_object_mut()
+        .ok_or_else(|| Error::Protocol("Statsig bootstrap config must be an object".into()))?;
+    let dynamic_configs = root
+        .entry("dynamic_configs")
+        .or_insert_with(|| Value::Object(Map::new()))
+        .as_object_mut()
+        .ok_or_else(|| Error::Protocol("Statsig dynamic_configs must be an object".into()))?;
+    dynamic_configs.insert(
+        config_key.clone(),
+        json!({
+            "id_type": "userID",
+            "is_device_based": false,
+            "name": config_key,
+            "passed": false,
+            "rule_id": LOCAL_RULE,
+            "ruleID": LOCAL_RULE,
+            "secondary_exposures": [],
+            "secondaryExposures": [],
+            "value": {
+                "enabled": false,
+                "treatment_percent": null,
+                "maxConnections": 1,
+                "fallbackOnColdPool": false,
+                "warmSpareOnLease": false
+            }
+        }),
+    );
     Ok(())
 }
 
@@ -173,4 +209,44 @@ fn encode_unary(message: &impl Message, framed: bool) -> Bytes {
     output.put_u32(payload.len() as u32);
     output.extend_from_slice(&payload);
     output.freeze()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn disables_run_inference_websocket_with_djb2_key() {
+        let mut config = json!({
+            "hash_used": "djb2",
+            "dynamic_configs": {}
+        });
+        disable_run_inference_websocket(&mut config).unwrap();
+
+        let entry = config["dynamic_configs"]["1747296477"].as_object().unwrap();
+        assert_eq!(entry["value"]["enabled"], false);
+        assert_eq!(entry["value"]["treatment_percent"], Value::Null);
+        assert_eq!(entry["value"]["maxConnections"], 1);
+    }
+
+    #[test]
+    fn overrides_existing_run_inference_websocket_config() {
+        let mut config = json!({
+            "hash_used": "djb2",
+            "dynamic_configs": {
+                "1747296477": {
+                    "name": "1747296477",
+                    "value": {
+                        "enabled": true,
+                        "treatment_percent": 100
+                    }
+                }
+            }
+        });
+        disable_run_inference_websocket(&mut config).unwrap();
+
+        let entry = config["dynamic_configs"]["1747296477"].as_object().unwrap();
+        assert_eq!(entry["value"]["enabled"], false);
+        assert_eq!(entry["value"]["treatment_percent"], Value::Null);
+    }
 }

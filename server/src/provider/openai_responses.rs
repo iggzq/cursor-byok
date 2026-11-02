@@ -15,7 +15,7 @@ use crate::{
 
 use super::{
     apply_body_allowlist, apply_openai_prompt_cache_key,
-    attempt::{send_once, Attempt},
+    attempt::{send_with_retry, Attempt},
     map_sse_error, merge_extra_params, provider_event_error,
     recorder::recorded_headers,
     CallRecorder, FinishReason, ModelEvent, Provider, ProviderStream,
@@ -89,7 +89,7 @@ impl Provider for OpenAiResponsesProvider {
             if let Some(recorder) = &recorder {
                 recorder.request(request_headers.clone(), &body).await?;
             }
-            let attempt = send_once(
+            let attempt = send_with_retry(
                 "OpenAI Responses",
                 || client.post(&config.request_url)
                     .bearer_auth(&config.api_key).headers(config.custom_headers.clone()).json(&body),
@@ -578,6 +578,31 @@ mod tests {
                 "summary": [{"type": "summary_text", "text": "why"}],
                 "content": [],
                 "encrypted_content": "opaque"
+            })]
+        );
+    }
+
+    #[test]
+    fn keeps_standard_string_image_url() {
+        let messages = [ProjectedMessage {
+            message_id: "user-1".into(),
+            role: Role::User,
+            content: ProjectedContent::Parts(vec![ContentPart::Image {
+                mime_type: "image/png".into(),
+                data: b"image".to_vec(),
+            }]),
+        }];
+
+        assert_eq!(
+            responses_input(&messages).unwrap(),
+            vec![json!({
+                "type": "message",
+                "role": "user",
+                "content": [{
+                    "type": "input_image",
+                    "detail": "auto",
+                    "image_url": "data:image/png;base64,aW1hZ2U="
+                }]
             })]
         );
     }
