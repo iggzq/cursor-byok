@@ -184,14 +184,13 @@ server/
 │   │   ├── cursor_traces.rs                    # ≈400 行；Cursor Trace
 │   │   └── overview.rs                         # ≈350 行；控制台查询
 │   │
-│   ├── control/                                # ≈2,100 行；管理端 API
+│   ├── control/                                # ≈1,950 行；管理端 API
 │   │   ├── mod.rs                              # ≈30 行；模块导出
-│   │   ├── service.rs                          # ≈500 行；管理端服务
+│   │   ├── service.rs                          # ≈450 行；管理端服务
 │   │   ├── settings.rs                         # ≈350 行；设置接口
 │   │   ├── models.rs                           # ≈350 行；模型接口
 │   │   ├── overview.rs                         # ≈300 行；概览
 │   │   ├── calls.rs                            # ≈250 行；调用记录
-│   │   ├── ads.rs                              # ≈150 行；广告配置
 │   │   └── harness.rs                          # ≈170 行；Harness 控制
 │   │
 │   ├── search/                                 # ≈1,400 行；搜索能力
