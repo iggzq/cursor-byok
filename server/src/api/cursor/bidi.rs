@@ -227,38 +227,68 @@ pub fn decode(request: &ai::BidiAppendRequest) -> Result<DecodedAppend> {
         .map(|id| id.request_id.as_str())
         .filter(|id| !id.is_empty())
         .ok_or_else(|| Error::Protocol("BidiAppend request_id is required".into()))?;
-    if !request.data_binary.is_empty() {
-        return Err(Error::Protocol(
-            "BidiAppend data_binary is not part of the captured protocol".into(),
-        ));
-    }
-    if request.data.is_empty() {
+    let binary = !request.data_binary.is_empty();
+    let payload = if binary {
+        request.data_binary.clone()
+    } else if !request.data.is_empty() {
+        hex::decode(&request.data)
+            .map_err(|error| Error::Protocol(format!("invalid BidiAppend hex: {error}")))?
+    } else {
         return Err(Error::Protocol(
             "BidiAppend contains no client message".into(),
         ));
-    }
-    let payload = hex::decode(&request.data)
-        .map_err(|error| Error::Protocol(format!("invalid BidiAppend hex: {error}")))?;
-    let message = if let Ok(message) = agent::AgentClientMessage::decode(payload.as_slice()) {
-        DecodedMessage::Agent(Box::new(message))
-    } else if let Ok(message) = ai::RunInferenceClientMessage::decode(payload.as_slice()) {
-        DecodedMessage::Inference(Box::new(message))
-    } else {
+    };
+    let message = decode_client_message(payload.as_slice(), binary).ok_or_else(|| {
         tracing::warn!(
             request_id = %request_id,
             append_seqno = request.append_seqno,
-            payload = %request.data,
+            payload_len = payload.len(),
+            payload = %hex::encode(&payload),
             "BidiAppend contained neither AgentClientMessage nor RunInferenceClientMessage"
         );
-        return Err(Error::Protocol(
-            "BidiAppend contains no supported Cursor client message".into(),
-        ));
-    };
+        Error::Protocol("BidiAppend contains no supported Cursor client message".into())
+    })?;
     Ok(DecodedAppend {
         request_id: request_id.into(),
         seqno: request.append_seqno,
         message,
     })
+}
+
+fn decode_client_message(payload: &[u8], prefer_inference: bool) -> Option<DecodedMessage> {
+    let agent = agent::AgentClientMessage::decode(payload)
+        .ok()
+        .map(|message| {
+            (
+                message.message.is_some(),
+                DecodedMessage::Agent(Box::new(message)),
+            )
+        });
+    let inference = ai::RunInferenceClientMessage::decode(payload)
+        .ok()
+        .map(|message| {
+            (
+                message.message.is_some(),
+                DecodedMessage::Inference(Box::new(message)),
+            )
+        });
+    let mut candidates = if prefer_inference {
+        [inference, agent]
+    } else {
+        [agent, inference]
+    };
+    if let Some(index) = candidates.iter().position(|candidate| {
+        candidate
+            .as_ref()
+            .is_some_and(|(has_message, _)| *has_message)
+    }) {
+        return candidates[index].take().map(|(_, message)| message);
+    }
+    candidates
+        .into_iter()
+        .flatten()
+        .next()
+        .map(|(_, message)| message)
 }
 
 pub async fn append(
@@ -376,5 +406,60 @@ mod tests {
             .selected_subagent_models
             .iter()
             .any(|model| model.model_id == "grok-4.7"));
+    }
+
+    #[test]
+    fn decodes_binary_run_inference_append() {
+        let payload = hex::decode(CAPTURED_RUN_INFERENCE_PAYLOAD).expect("valid captured hex");
+        let request = ai::BidiAppendRequest {
+            data: String::new(),
+            request_id: Some(ai::BidiRequestId {
+                request_id: "captured-binary-run".into(),
+            }),
+            append_seqno: 2,
+            data_binary: payload,
+        };
+        let decoded = decode(&request).expect("binary RunInference payload must decode");
+        let DecodedMessage::Inference(message) = decoded.message else {
+            panic!("expected RunInferenceClientMessage");
+        };
+        assert!(matches!(
+            message.message,
+            Some(ai::run_inference_client_message::Message::RunRequest(_))
+        ));
+    }
+
+    #[test]
+    fn decodes_new_run_inference_client_messages() {
+        let payload = ai::RunInferenceClientMessage {
+            message: Some(
+                ai::run_inference_client_message::Message::ResolveSubagentModels(
+                    ai::RunInferenceResolveSubagentModels {
+                        resolution_id: "resolution-1".into(),
+                        requested_models: vec!["deepseek-flash".into()],
+                    },
+                ),
+            ),
+        }
+        .encode_to_vec();
+        let request = ai::BidiAppendRequest {
+            data: String::new(),
+            request_id: Some(ai::BidiRequestId {
+                request_id: "resolve-subagent".into(),
+            }),
+            append_seqno: 3,
+            data_binary: payload,
+        };
+        let decoded = decode(&request).expect("newer RunInference message must decode");
+        let DecodedMessage::Inference(message) = decoded.message else {
+            panic!("expected RunInferenceClientMessage");
+        };
+        let Some(ai::run_inference_client_message::Message::ResolveSubagentModels(request)) =
+            message.message
+        else {
+            panic!("expected ResolveSubagentModels");
+        };
+        assert_eq!(request.resolution_id, "resolution-1");
+        assert_eq!(request.requested_models, ["deepseek-flash"]);
     }
 }

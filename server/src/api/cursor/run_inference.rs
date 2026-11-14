@@ -136,8 +136,55 @@ pub async fn append(
             }
             Ok(ai::BidiAppendResponse {})
         }
-        Some(Message::ClientHeartbeat(_)) | None => Ok(ai::BidiAppendResponse {}),
+        Some(Message::ResolveSubagentModels(request)) => {
+            resolve_subagent_models(registry, &request_id, request).await
+        }
+        Some(Message::AgentEvent(event)) => {
+            tracing::debug!(
+                request_id,
+                method_name = event.method_name,
+                "ignoring Cursor RunInference agent event"
+            );
+            Ok(ai::BidiAppendResponse {})
+        }
+        Some(Message::RunRequestLog(_))
+        | Some(Message::ClientFirstCallTimings(_))
+        | Some(Message::DeltaBaseSeed(_))
+        | Some(Message::ClientHeartbeat(_))
+        | None => Ok(ai::BidiAppendResponse {}),
     }
+}
+
+async fn resolve_subagent_models(
+    registry: &TransportRegistry,
+    request_id: &str,
+    request: ai::RunInferenceResolveSubagentModels,
+) -> Result<ai::BidiAppendResponse> {
+    let Some(handle) = registry.local(request_id).await else {
+        return Ok(ai::BidiAppendResponse {});
+    };
+    let models = request
+        .requested_models
+        .into_iter()
+        .map(|requested| ai::RunInferenceResolvedSubagentModel {
+            resolved_slug: Some(requested.clone()),
+            requested,
+        })
+        .collect();
+    emit_server(
+        &handle,
+        &ai::RunInferenceServerMessage {
+            message: Some(
+                ai::run_inference_server_message::Message::SubagentModelsResolved(
+                    ai::RunInferenceSubagentModelsResolved {
+                        resolution_id: request.resolution_id,
+                        models,
+                    },
+                ),
+            ),
+        },
+    );
+    Ok(ai::BidiAppendResponse {})
 }
 
 async fn run_request(

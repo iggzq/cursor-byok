@@ -307,7 +307,10 @@ pub mod aiserver {
 
         #[derive(Clone, PartialEq, ::prost::Message)]
         pub struct RunInferenceClientMessage {
-            #[prost(oneof = "run_inference_client_message::Message", tags = "1,2,3,4,5")]
+            #[prost(
+                oneof = "run_inference_client_message::Message",
+                tags = "1,2,3,4,5,6,7,9,10,11"
+            )]
             pub message: Option<run_inference_client_message::Message>,
         }
 
@@ -324,6 +327,16 @@ pub mod aiserver {
                 FinishRun(super::RunInferenceFinishRun),
                 #[prost(message, tag = "5")]
                 ClientHeartbeat(super::RunInferenceClientHeartbeat),
+                #[prost(message, tag = "6")]
+                AgentEvent(super::RunInferenceAgentEvent),
+                #[prost(message, tag = "7")]
+                RunRequestLog(super::RunInferenceRunRequestLog),
+                #[prost(message, tag = "9")]
+                ResolveSubagentModels(super::RunInferenceResolveSubagentModels),
+                #[prost(message, tag = "10")]
+                ClientFirstCallTimings(super::RunInferenceClientFirstCallTimings),
+                #[prost(message, tag = "11")]
+                DeltaBaseSeed(super::RunInferenceDeltaBaseSeed),
             }
         }
 
@@ -439,6 +452,46 @@ pub mod aiserver {
 
         #[derive(Clone, PartialEq, ::prost::Message)]
         pub struct RunInferenceClientHeartbeat {}
+
+        #[derive(Clone, PartialEq, ::prost::Message)]
+        pub struct RunInferenceAgentEvent {
+            #[prost(string, tag = "1")]
+            pub method_name: String,
+            #[prost(string, tag = "2")]
+            pub options_json: String,
+            #[prost(int64, optional, tag = "3")]
+            pub client_reported_at_ms: Option<i64>,
+        }
+
+        #[derive(Clone, PartialEq, ::prost::Message)]
+        pub struct RunInferenceRunRequestLog {
+            #[prost(bytes = "vec", tag = "1")]
+            pub agent_run_request: Vec<u8>,
+        }
+
+        #[derive(Clone, PartialEq, ::prost::Message)]
+        pub struct RunInferenceResolveSubagentModels {
+            #[prost(string, tag = "1")]
+            pub resolution_id: String,
+            #[prost(string, repeated, tag = "2")]
+            pub requested_models: Vec<String>,
+        }
+
+        #[derive(Clone, PartialEq, ::prost::Message)]
+        pub struct RunInferenceClientFirstCallTimings {
+            #[prost(string, tag = "1")]
+            pub invocation_id: String,
+        }
+
+        #[derive(Clone, PartialEq, ::prost::Message)]
+        pub struct RunInferenceDeltaBaseSeed {
+            #[prost(string, tag = "1")]
+            pub invocation_id: String,
+            #[prost(message, optional, tag = "2")]
+            pub request: Option<InferenceStreamRequest>,
+            #[prost(message, optional, tag = "3")]
+            pub compressed_request: Option<RunInferenceCompressedRequest>,
+        }
 
         #[derive(Clone, PartialEq, ::prost::Message)]
         pub struct RunInferenceFinishRun {
