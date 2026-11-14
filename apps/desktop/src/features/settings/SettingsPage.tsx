@@ -5,6 +5,7 @@ import { LegacyModelImport } from "../models/LegacyModelImport";
 import { AppLifecycleSettingsCard } from "./AppLifecycleSettingsCard";
 import { CommitSettingsCard } from "./CommitSettingsCard";
 import { ExternalApiSettingsCard } from "./ExternalApiSettingsCard";
+import { OverviewSyncSettingsCard } from "./OverviewSyncSettingsCard";
 import { PricingSettingsCard } from "./PricingSettingsCard";
 import { ProxySettingsCard } from "./ProxySettingsCard";
 import { TabSettingsCard } from "./TabSettingsCard";
@@ -226,6 +227,7 @@ export function SettingsPage() {
         </div>
       </TitledCard>
       <ExternalApiSettingsCard servicePort={ports.service_port} />
+      <OverviewSyncSettingsCard />
       <ProxySettingsCard settings={outboundProxy} draft={proxyDraft} editing={editingProxy} saving={savingProxy} onDraftChange={setProxyDraft} onEdit={editProxy} onCancel={cancelProxyEdit} onSave={() => void saveProxy()} />
       <TabSettingsCard settings={tabSettings} draft={tabDraft} editing={editingTab} saving={savingTab} onDraftChange={setTabDraft} onEdit={editTab} onCancel={cancelTabEdit} onSave={() => void saveTab()} />
       <CommitSettingsCard />
@@ -315,5 +317,5 @@ export function SettingsPage() {
       </ConfirmDialog>
     </div>
   );
-  return <PageContent title={t("设置")} sections={[{ key: "settings", estimatedHeight: 1200, content }]} />;
+  return <PageContent title={t("设置")} sections={[{ key: "settings", estimatedHeight: 1600, content }]} />;
 }

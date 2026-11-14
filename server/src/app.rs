@@ -5,7 +5,7 @@ use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    api,
+    api, collection,
     config::{Config, ConsoleSource},
     control,
     cursor::{
@@ -26,6 +26,7 @@ pub struct App {
     registry: TransportRegistry,
     harness: CursorHarness,
     store: Store,
+    clients: crate::network::NetworkClients,
 }
 
 impl App {
@@ -45,6 +46,7 @@ impl App {
             config.app_version.clone(),
         )?;
         let clients = crate::network::NetworkClients::new(store.clone());
+        let overview_clients = clients.clone();
         let provider = std::sync::Arc::new(ProviderRouter::new(
             store.clone(),
             plugins.clone(),
@@ -79,7 +81,7 @@ impl App {
             clients.clone(),
         )?;
         let harness = control.cursor_harness().clone();
-        let mut router = api::router(registry.clone(), clients)?.merge(byok);
+        let mut router = api::router(registry.clone(), clients.clone())?.merge(byok);
         router = match &config.console {
             Some(ConsoleSource::Directory(directory)) => {
                 router.merge(control::web_router(control.clone(), directory))
@@ -94,6 +96,7 @@ impl App {
             registry,
             harness,
             store,
+            clients: overview_clients,
             config,
         })
     }
@@ -143,6 +146,7 @@ impl App {
         self.registry.web_cache().set_service_addr(address);
         self.harness.set_backend_addr(address);
         tracing::info!(%address, "cursor server listening");
+        self.start_overview_collection(shutdown.clone());
         let registry = self.registry;
         let harness = self.harness;
         let graceful = shutdown.clone();
@@ -172,6 +176,18 @@ impl App {
             }
         }
         Ok(())
+    }
+}
+
+impl App {
+    /// Starts the member-side push worker. The aggregation center is a separate
+    /// deployment, so this machine never opens an inbound collector listener.
+    fn start_overview_collection(&self, shutdown: CancellationToken) {
+        let push_store = self.store.clone();
+        let clients = self.clients.clone();
+        tokio::spawn(async move {
+            collection::run(push_store, clients, shutdown).await;
+        });
     }
 }
 

@@ -1,0 +1,34 @@
+[Unit]
+Description=Cursor BYOK overview aggregation collector
+Documentation=https://github.com/iggzq/cursor-byok
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=collector
+Group=collector
+WorkingDirectory=/var/lib/cursor-collector
+# The collector refuses to start without an API key; members authenticate with it.
+Environment=CURSOR_OVERVIEW_COLLECTOR_API_KEY=CHANGE_ME
+Environment=CURSOR_OVERVIEW_COLLECTOR_ADDR=0.0.0.0:4399
+Environment=CURSOR_DATABASE_URL=sqlite:///var/lib/cursor-collector/overview-collector.db
+Environment=RUST_LOG=cursor_server=info
+ExecStart=/opt/cursor-overview-collector/cursor-overview-collector
+Restart=always
+RestartSec=3
+
+# The service only needs its own data directory and outbound DNS.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/cursor-collector
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

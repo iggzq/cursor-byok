@@ -68,6 +68,48 @@ Your model API
 
 cursor-byok handles protocol adaptation, model request forwarding, tool-call coordination, and conversation state on your machine. API keys and application settings are stored locally; requests are still sent to the model provider you configure.
 
+## Cross-Machine Overview Aggregation
+
+Each desktop keeps its usage statistics locally. To merge data from several machines, deploy the standalone collector service on a central server; it is a separate binary that shares no runtime with the desktop app.
+
+```bash
+# Build and run on the central host
+make build-collector
+CURSOR_OVERVIEW_COLLECTOR_API_KEY=change-me ./target/release/cursor-overview-collector
+```
+
+To run it on a different architecture (for example an x86_64 Linux server while working on Apple Silicon), package a Linux binary with Docker and copy it over:
+
+```bash
+make package-collector                      # cross-builds linux/amd64 into dist/collector/
+scp dist/collector/cursor-overview-collector dist/collector/install-collector.sh root@SERVER:/root/
+ssh root@SERVER 'sh /root/install-collector.sh /root/cursor-overview-collector "change-me"'
+```
+
+`install-collector.sh` creates the `collector` system user, installs the binary to `/opt/cursor-overview-collector`, stores the database in `/var/lib/cursor-collector`, writes and enables a hardened systemd unit, then prints a `/healthz` check. Manage it with `systemctl status|restart cursor-overview-collector` and `journalctl -u cursor-overview-collector -f`.
+
+Or with Docker:
+
+```bash
+CURSOR_OVERVIEW_COLLECTOR_API_KEY=change-me docker compose -f docker-compose.collector.yml up -d
+```
+
+The collector listens on `0.0.0.0:4399` by default and exposes only:
+
+- `POST /byok/v1/overview/ingest` — members push finished call records
+- `GET /byok/v1/overview`, `/models`, `/sources` — read-only aggregates
+- `GET /healthz` — health check
+
+Then, in each desktop, open **Settings → 概览数据**, switch to **远程汇总模式**, and fill in the collector address (`http://<server>:4399`), the same API key, and a device name. Every machine, including the central host itself, pushes incrementally; only usage counts and call metadata are transferred, never prompts or responses.
+
+Configuration:
+
+| Variable | Meaning |
+| --- | --- |
+| `CURSOR_OVERVIEW_COLLECTOR_API_KEY` | Required shared key for members |
+| `CURSOR_OVERVIEW_COLLECTOR_ADDR` | Listen address, default `0.0.0.0:4399` |
+| `CURSOR_DATABASE_URL` | SQLite URL, default `sqlite://overview-collector.db` |
+
 ## Why This Project
 
 Many Agent products bundle their tool capabilities with a fixed set of models, subscriptions, and billing options, leaving users limited to the channels offered by the platform.

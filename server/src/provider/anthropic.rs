@@ -372,13 +372,19 @@ fn anthropic_messages(messages: &[ProjectedMessage]) -> Result<Vec<Value>> {
                 ..
             } => {
                 let mut content = Vec::new();
-                if let Some(blocks) = replay_state
-                    .as_ref()
-                    .filter(|state| state.provider_kind == "anthropic")
-                    .and_then(|state| state.value.get("blocks"))
-                    .and_then(Value::as_array)
-                {
-                    content.extend(blocks.iter().cloned());
+                if let Some(state) = replay_state.as_ref() {
+                    for value in state.values_for("anthropic")? {
+                        let blocks =
+                            value
+                                .get("blocks")
+                                .and_then(Value::as_array)
+                                .ok_or_else(|| {
+                                    Error::Protocol(
+                                        "Anthropic replay state is missing blocks".into(),
+                                    )
+                                })?;
+                        content.extend(blocks.iter().cloned());
+                    }
                 }
                 if !text.is_empty() {
                     content.push(json!({"type": "text", "text": text}));
@@ -505,6 +511,36 @@ pub(crate) fn anthropic_usage(value: &Value) -> Usage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::ProviderReplayState;
+
+    #[test]
+    fn multiple_reasoning_replay_parts_keep_all_anthropic_blocks() {
+        let messages = anthropic_messages(&[ProjectedMessage {
+            message_id: "assistant-1".into(),
+            role: Role::Assistant,
+            content: ProjectedContent::Assistant {
+                text: "answer".into(),
+                thinking: String::new(),
+                replay_state: ProviderReplayState::combine(vec![
+                    ProviderReplayState {
+                        provider_kind: "anthropic".into(),
+                        value: json!({"blocks":[{"type":"thinking","thinking":"first","signature":"a"}]}),
+                    },
+                    ProviderReplayState {
+                        provider_kind: "anthropic".into(),
+                        value: json!({"blocks":[{"type":"thinking","thinking":"second","signature":"b"}]}),
+                    },
+                ])
+                .unwrap(),
+                calls: Vec::new(),
+            },
+        }])
+        .unwrap();
+
+        assert_eq!(messages[0]["content"][0]["signature"], "a");
+        assert_eq!(messages[0]["content"][1]["signature"], "b");
+        assert_eq!(messages[0]["content"][2]["text"], "answer");
+    }
 
     #[test]
     fn cached_tokens_are_included_once_in_anthropic_context_input() {

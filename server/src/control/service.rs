@@ -13,18 +13,20 @@ use tokio_util::sync::CancellationToken;
 use url::Url;
 
 use crate::{
+    collection::{RemoteClient, RemoteQuery},
     local_app::CursorHarness,
     model::{
         ContentPart, CursorRunTraceArtifact, CursorRunTraceSummary, LlmCallRequest,
         LlmCallResponseChunk, LlmCallSummary, ModelConfig, ModelConfigInput, ModelInvocation,
-        ModelRequest, ModelSpec, ModelType, Overview, ProjectedContent, ProjectedMessage,
-        PromptSpec, ProviderType, Role,
+        ModelRequest, ModelSpec, ModelType, Overview, OverviewModelOption, OverviewSource,
+        ProjectedContent, ProjectedMessage, PromptSpec, ProviderType, Role,
     },
     plugin::{PluginDescriptor, PluginRegistry, PluginRuntime, PluginRuntimeStatus},
     provider::{is_valid_response_event, ModelEvent, Provider},
     store::{
-        CommitSettings, DesktopSettings, ExternalApiSettings, PortSettings, ProxySettings,
-        ProxySettingsInput, StatisticsStorage, Store, TabSettings, TokenPricingSettings,
+        CommitSettings, DesktopSettings, ExternalApiSettings, OverviewMode, OverviewSyncSettings,
+        OverviewSyncStatus, PortSettings, ProxySettings, ProxySettingsInput, StatisticsStorage,
+        Store, TabSettings, TokenPricingSettings,
     },
     Error, Result,
 };
@@ -285,9 +287,65 @@ impl ControlService {
         model_hashes: Option<&str>,
         bucket_ms: Option<i64>,
     ) -> Result<Overview> {
+        let sync = self.store.overview_sync_settings().await?;
+        if sync.mode == OverviewMode::Remote {
+            return RemoteClient::new(self.clients.clone())
+                .overview(
+                    &sync,
+                    &RemoteQuery {
+                        start_ms,
+                        end_ms,
+                        model_keys: model_hashes,
+                        bucket_ms,
+                    },
+                )
+                .await;
+        }
         self.store
             .overview(start_ms, end_ms, model_hashes, bucket_ms)
             .await
+    }
+
+    pub async fn overview_models(&self) -> Result<Vec<OverviewModelOption>> {
+        let sync = self.store.overview_sync_settings().await?;
+        if sync.mode == OverviewMode::Remote {
+            return RemoteClient::new(self.clients.clone()).models(&sync).await;
+        }
+        Ok(Vec::new())
+    }
+
+    pub async fn overview_sources(&self) -> Result<Vec<OverviewSource>> {
+        let sync = self.store.overview_sync_settings().await?;
+        if sync.mode != OverviewMode::Remote {
+            return Ok(Vec::new());
+        }
+        RemoteClient::new(self.clients.clone()).sources(&sync).await
+    }
+
+    pub async fn overview_sync_settings(&self) -> Result<OverviewSyncSettings> {
+        self.store.overview_sync_settings().await
+    }
+
+    pub async fn set_overview_sync_settings(
+        &self,
+        settings: OverviewSyncSettings,
+    ) -> Result<OverviewSyncSettings> {
+        self.store.set_overview_sync_settings(settings).await
+    }
+
+    pub async fn overview_sync_status(&self) -> Result<OverviewSyncStatus> {
+        let mut status = self.store.overview_sync_status().await?;
+        let watermark = self.store.overview_sync_watermark().await?;
+        status.pending_calls = self.store.pending_collected_call_count(&watermark).await?;
+        Ok(status)
+    }
+
+    pub async fn flush_overview_sync(&self) -> Result<OverviewSyncStatus> {
+        crate::collection::flush(&self.store, &self.clients).await
+    }
+
+    pub async fn reset_overview_sync(&self) -> Result<OverviewSyncStatus> {
+        crate::collection::reset_progress(&self.store).await
     }
 
     pub async fn create_models(&self, models: &[ModelConfigInput]) -> Result<Vec<ModelConfig>> {

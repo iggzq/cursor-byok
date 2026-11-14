@@ -13,6 +13,9 @@ const COMMIT_SETTINGS_KEY: &str = "commit_settings";
 const CURSOR_TAKEOVER_ENABLED_KEY: &str = "cursor_takeover_enabled";
 const PRICING_SETTINGS_KEY: &str = "token_pricing";
 const EXTERNAL_API_SETTINGS_KEY: &str = "external_api";
+const OVERVIEW_SYNC_SETTINGS_KEY: &str = "overview_sync";
+const OVERVIEW_SYNC_WATERMARK_KEY: &str = "overview_sync_watermark";
+const OVERVIEW_SYNC_STATUS_KEY: &str = "overview_sync_status";
 
 /// Embedded default system prompts for commit message generation.
 pub const DEFAULT_COMMIT_PROMPT_ZH_CN: &str = include_str!("../../prompt/cursor/commit/zh-CN.md");
@@ -30,6 +33,66 @@ pub struct PortSettings {
 pub struct ExternalApiSettings {
     pub enabled: bool,
     pub api_key: String,
+}
+
+/// Selects where the overview aggregates come from.
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OverviewMode {
+    #[default]
+    Local,
+    Remote,
+}
+
+/// Member-side settings that push this machine's call records to a collector.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+pub struct OverviewSyncSettings {
+    #[serde(default)]
+    pub mode: OverviewMode,
+    #[serde(default)]
+    pub center_url: String,
+    #[serde(default)]
+    pub api_key: String,
+    #[serde(default)]
+    pub device_id: String,
+    #[serde(default)]
+    pub device_name: String,
+}
+
+impl OverviewSyncSettings {
+    /// Ingestion endpoint derived from the configured collector base URL.
+    pub fn ingest_url(&self) -> Option<String> {
+        let base = self.center_url.trim().trim_end_matches('/');
+        if base.is_empty() {
+            return None;
+        }
+        Some(format!("{base}/byok/v1/overview/ingest"))
+    }
+
+    pub fn is_ready(&self) -> bool {
+        self.mode == OverviewMode::Remote
+            && self.ingest_url().is_some()
+            && !self.api_key.is_empty()
+            && !self.device_id.is_empty()
+    }
+}
+
+/// Visibility for the member-side push worker.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+pub struct OverviewSyncStatus {
+    pub pending_calls: i64,
+    pub last_push_at_ms: Option<i64>,
+    pub last_error: Option<String>,
+}
+
+/// Push cursor over finished calls, ordered by finish time then call id so a
+/// batch boundary sharing one timestamp never skips a record.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+pub struct OverviewWatermark {
+    #[serde(default)]
+    pub finished_at_ms: i64,
+    #[serde(default)]
+    pub call_id: String,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
@@ -505,6 +568,145 @@ impl Store {
         .await?;
         Ok(settings)
     }
+
+    pub async fn overview_sync_settings(&self) -> Result<OverviewSyncSettings> {
+        let value = sqlx::query_scalar::<_, String>(
+            "SELECT value_json FROM service_settings WHERE setting_key = ?",
+        )
+        .bind(OVERVIEW_SYNC_SETTINGS_KEY)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(value
+            .map(|value| serde_json::from_str(&value))
+            .transpose()?
+            .unwrap_or_default())
+    }
+
+    pub async fn set_overview_sync_settings(
+        &self,
+        mut settings: OverviewSyncSettings,
+    ) -> Result<OverviewSyncSettings> {
+        let existing = self.overview_sync_settings().await?;
+        settings.center_url = settings.center_url.trim().trim_end_matches('/').to_owned();
+        settings.api_key = settings.api_key.trim().to_owned();
+        settings.device_name = settings.device_name.trim().to_owned();
+        if settings.mode == OverviewMode::Remote {
+            if settings.center_url.is_empty() {
+                return Err(crate::Error::Config(
+                    "overview collector address is required in remote mode".into(),
+                ));
+            }
+            let parsed = url::Url::parse(&settings.center_url).map_err(|error| {
+                crate::Error::Config(format!("invalid overview collector address: {error}"))
+            })?;
+            if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
+                return Err(crate::Error::Config(
+                    "overview collector address must be an absolute http or https URL".into(),
+                ));
+            }
+            if settings.api_key.is_empty() {
+                return Err(crate::Error::Config(
+                    "overview collector API key is required in remote mode".into(),
+                ));
+            }
+        }
+        settings.device_id = if existing.device_id.is_empty() {
+            uuid::Uuid::new_v4().to_string()
+        } else {
+            existing.device_id
+        };
+        if settings.device_name.is_empty() {
+            settings.device_name = default_device_name();
+        }
+        let value_json = serde_json::to_string(&settings)?;
+        let _write = self.writes.lock().await;
+        self.write_setting(OVERVIEW_SYNC_SETTINGS_KEY, &value_json)
+            .await?;
+        Ok(settings)
+    }
+
+    pub async fn overview_sync_watermark(&self) -> Result<OverviewWatermark> {
+        let value = sqlx::query_scalar::<_, String>(
+            "SELECT value_json FROM service_settings WHERE setting_key = ?",
+        )
+        .bind(OVERVIEW_SYNC_WATERMARK_KEY)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(value
+            .map(|value| serde_json::from_str(&value))
+            .transpose()?
+            .unwrap_or_default())
+    }
+
+    pub async fn set_overview_sync_watermark(&self, watermark: &OverviewWatermark) -> Result<()> {
+        let value_json = serde_json::to_string(watermark)?;
+        let _write = self.writes.lock().await;
+        self.write_setting(OVERVIEW_SYNC_WATERMARK_KEY, &value_json)
+            .await
+    }
+
+    /// Clears the push cursor so the next sync re-sends this machine's history.
+    ///
+    /// Re-uploading is safe: the collector upserts on `(source_id, call_id)`.
+    pub async fn reset_overview_sync_watermark(&self) -> Result<OverviewSyncStatus> {
+        {
+            let _write = self.writes.lock().await;
+            sqlx::query("DELETE FROM service_settings WHERE setting_key = ?")
+                .bind(OVERVIEW_SYNC_WATERMARK_KEY)
+                .execute(&self.pool)
+                .await?;
+        }
+        let watermark = OverviewWatermark::default();
+        let pending_calls = self.pending_collected_call_count(&watermark).await?;
+        let status = OverviewSyncStatus {
+            pending_calls,
+            last_push_at_ms: self.overview_sync_status().await?.last_push_at_ms,
+            last_error: None,
+        };
+        self.set_overview_sync_status(&status).await?;
+        Ok(status)
+    }
+
+    pub async fn overview_sync_status(&self) -> Result<OverviewSyncStatus> {
+        let value = sqlx::query_scalar::<_, String>(
+            "SELECT value_json FROM service_settings WHERE setting_key = ?",
+        )
+        .bind(OVERVIEW_SYNC_STATUS_KEY)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(value
+            .map(|value| serde_json::from_str(&value))
+            .transpose()?
+            .unwrap_or_default())
+    }
+
+    pub async fn set_overview_sync_status(&self, status: &OverviewSyncStatus) -> Result<()> {
+        let value_json = serde_json::to_string(status)?;
+        let _write = self.writes.lock().await;
+        self.write_setting(OVERVIEW_SYNC_STATUS_KEY, &value_json)
+            .await
+    }
+
+    async fn write_setting(&self, key: &str, value_json: &str) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO service_settings(setting_key, value_json, updated_at_ms) VALUES (?, ?, ?) ON CONFLICT(setting_key) DO UPDATE SET value_json = excluded.value_json, updated_at_ms = excluded.updated_at_ms",
+        )
+        .bind(key)
+        .bind(value_json)
+        .bind(now_ms())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+}
+
+fn default_device_name() -> String {
+    std::env::var("COMPUTERNAME")
+        .or_else(|_| std::env::var("HOSTNAME"))
+        .ok()
+        .map(|name| name.trim().to_owned())
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "BYOK".to_string())
 }
 
 #[cfg(test)]

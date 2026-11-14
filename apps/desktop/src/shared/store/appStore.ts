@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { api, type CursorHarnessStatus, type LlmCall, type Model, type ModelInput, type Overview, type PluginDescriptor, type PluginRuntimeStatus, type PortSettings, type TokenPricingSettings } from "../api";
+import { api, type CursorHarnessStatus, type LlmCall, type Model, type ModelInput, type Overview, type OverviewSyncSettings, type PluginDescriptor, type PluginRuntimeStatus, type PortSettings, type TokenPricingSettings } from "../api";
 import { applyTheme, isThemeId, type ThemeId } from "../theme/theme";
 
 export const DEFAULT_TOKEN_PRICING: TokenPricingSettings = {
@@ -9,10 +9,19 @@ export const DEFAULT_TOKEN_PRICING: TokenPricingSettings = {
   cache_write_per_million: 6.25,
 };
 
+export const DEFAULT_OVERVIEW_SYNC: OverviewSyncSettings = {
+  mode: "local",
+  center_url: "",
+  api_key: "",
+  device_id: "",
+  device_name: "",
+};
+
 export type AppSnapshot = {
   models: Model[];
   calls: LlmCall[];
   overview: Overview;
+  overviewSync: OverviewSyncSettings;
   detailed: boolean;
   ports: PortSettings;
   pricing: TokenPricingSettings;
@@ -47,7 +56,9 @@ let snapshot: AppSnapshot = {
     },
     token_usage_granularity: "day",
     token_usage_series: [],
+    device_count: 0,
   },
+  overviewSync: DEFAULT_OVERVIEW_SYNC,
   detailed: false,
   ports: { proxy_port: 0, service_port: 0 },
   pricing: DEFAULT_TOKEN_PRICING,
@@ -86,7 +97,7 @@ export const appStore = {
   async refresh() {
     update({ busy: true, error: null });
     try {
-      const [models, calls, overview, settings, ports, pricing, cursorHarness, pluginRuntime, plugins] = await Promise.all([
+      const [models, calls, overview, settings, ports, pricing, cursorHarness, pluginRuntime, plugins, overviewSync] = await Promise.all([
         api.models(),
         api.calls(),
         api.overview(),
@@ -96,8 +107,9 @@ export const appStore = {
         api.cursorHarness(),
         api.pluginRuntime(),
         api.plugins(),
+        api.overviewSyncSettings(),
       ]);
-      update({ models, calls, overview, detailed: settings.detailed, ports, pricing, cursorHarness, pluginRuntime, plugins });
+      update({ models, calls, overview, detailed: settings.detailed, ports, pricing, cursorHarness, pluginRuntime, plugins, overviewSync });
     } catch (cause) {
       update({ error: cause instanceof Error ? cause.message : String(cause) });
     } finally {
@@ -274,6 +286,17 @@ export const appStore = {
     } catch (cause) {
       update({ error: cause instanceof Error ? cause.message : String(cause) });
       return false;
+    }
+  },
+  async updateOverviewSync(settings: OverviewSyncSettings) {
+    try {
+      update({ error: null });
+      const saved = await api.setOverviewSyncSettings(settings);
+      update({ overviewSync: saved });
+      return saved;
+    } catch (cause) {
+      update({ error: cause instanceof Error ? cause.message : String(cause) });
+      throw cause;
     }
   },
   selectTheme(theme: ThemeId) {

@@ -7,7 +7,10 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::{model::Overview, Result};
+use crate::{
+    model::{Overview, OverviewModelOption, OverviewSource},
+    Result,
+};
 
 use super::ControlService;
 
@@ -33,4 +36,14 @@ pub async fn get(
             )
             .await?,
     ))
+}
+
+pub async fn models(
+    State(service): State<ControlService>,
+) -> Result<Json<Vec<OverviewModelOption>>> {
+    Ok(Json(service.overview_models().await?))
+}
+
+pub async fn sources(State(service): State<ControlService>) -> Result<Json<Vec<OverviewSource>>> {
+    Ok(Json(service.overview_sources().await?))
 }

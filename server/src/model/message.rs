@@ -49,6 +49,67 @@ pub struct ProviderReplayState {
     pub value: Value,
 }
 
+impl ProviderReplayState {
+    const COMPOSITE_KIND: &'static str = "composite";
+
+    pub fn combine(states: Vec<Self>) -> crate::Result<Option<Self>> {
+        let mut parts = Vec::new();
+        for state in states {
+            if state.provider_kind == Self::COMPOSITE_KIND {
+                for (provider_kind, value) in state.parts()? {
+                    parts.push(Self {
+                        provider_kind: provider_kind.into(),
+                        value: value.clone(),
+                    });
+                }
+            } else {
+                parts.push(state);
+            }
+        }
+        match parts.len() {
+            0 => Ok(None),
+            1 => Ok(parts.pop()),
+            _ => Ok(Some(Self {
+                provider_kind: Self::COMPOSITE_KIND.into(),
+                value: serde_json::to_value(parts)?,
+            })),
+        }
+    }
+
+    pub fn parts(&self) -> crate::Result<Vec<(&str, &Value)>> {
+        if self.provider_kind != Self::COMPOSITE_KIND {
+            return Ok(vec![(self.provider_kind.as_str(), &self.value)]);
+        }
+        self.value
+            .as_array()
+            .ok_or_else(|| crate::Error::Protocol("composite replay state is not an array".into()))?
+            .iter()
+            .map(|part| {
+                let provider_kind = part
+                    .get("provider_kind")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| {
+                        crate::Error::Protocol(
+                            "composite replay state part is missing provider_kind".into(),
+                        )
+                    })?;
+                let value = part.get("value").ok_or_else(|| {
+                    crate::Error::Protocol("composite replay state part is missing value".into())
+                })?;
+                Ok((provider_kind, value))
+            })
+            .collect()
+    }
+
+    pub fn values_for(&self, provider_kind: &str) -> crate::Result<Vec<&Value>> {
+        Ok(self
+            .parts()?
+            .into_iter()
+            .filter_map(|(kind, value)| (kind == provider_kind).then_some(value))
+            .collect())
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentPart {

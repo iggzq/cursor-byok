@@ -13,6 +13,10 @@ name = "cursor_server"
 name = "cursor-server"
 path = "src/bin/cursor-server.rs"
 
+[[bin]]
+name = "cursor-overview-collector"
+path = "src/bin/cursor-overview-collector.rs"
+
 [dependencies]
 async-stream = "0.3"
 axum = "0.8"

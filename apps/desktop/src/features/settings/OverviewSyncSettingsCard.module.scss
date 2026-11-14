@@ -1,0 +1,131 @@
+@use "../../styles/typography" as type;
+
+.content {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
+.row,
+.status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+}
+
+.description,
+.status > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+
+  small {
+    color: var(--vscode-descriptionForeground);
+    font-size: type.$font-size-xs;
+  }
+}
+
+.modeControl {
+  width: 180px;
+  flex: 0 0 auto;
+}
+
+.status {
+  padding-top: 4px;
+}
+
+.statusActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.sources {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: 6px;
+}
+
+.source {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  small {
+    color: var(--vscode-descriptionForeground);
+    font-size: type.$font-size-xs;
+    flex: 0 0 auto;
+  }
+}
+
+.command {
+  overflow-wrap: anywhere;
+  color: var(--vscode-descriptionForeground);
+  font-size: type.$font-size-xs;
+}
+
+.resetRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+
+  > div {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  small {
+    color: var(--vscode-descriptionForeground);
+    font-size: type.$font-size-xs;
+  }
+}
+
+.confirmContent {
+  color: var(--vscode-descriptionForeground);
+  font-size: type.$font-size-xs;
+}
+
+@media (max-width: 680px) {
+  .resetRow {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+.error {
+  color: var(--vscode-errorForeground);
+  overflow-wrap: anywhere;
+}
+
+.divider {
+  height: 1px;
+  background: var(--vscode-widget-border);
+}
+
+@media (max-width: 680px) {
+  .row,
+  .status {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .modeControl {
+    width: 100%;
+  }
+}

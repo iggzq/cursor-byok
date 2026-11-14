@@ -258,10 +258,14 @@ fn openai_chat_messages(instructions: &str, messages: &[ProjectedMessage]) -> Re
             } => {
                 let replay_reasoning = replay_state
                     .as_ref()
-                    .filter(|state| state.provider_kind == "openai_chat")
-                    .and_then(|state| state.value.get("reasoning_content"))
-                    .and_then(Value::as_str)
-                    .filter(|reasoning| !reasoning.is_empty());
+                    .map(|state| state.values_for("openai_chat"))
+                    .transpose()?
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter_map(|value| value.get("reasoning_content"))
+                    .filter_map(Value::as_str)
+                    .collect::<String>();
+                let replay_reasoning = (!replay_reasoning.is_empty()).then_some(replay_reasoning);
 
                 // Chat Completions rejects an empty assistant content string. Tool-call
                 // assistant messages use null content, while an assistant with no visible
@@ -278,7 +282,7 @@ fn openai_chat_messages(instructions: &str, messages: &[ProjectedMessage]) -> Re
                     },
                 );
                 if let Some(reasoning) = replay_reasoning {
-                    value.insert("reasoning_content".into(), Value::String(reasoning.into()));
+                    value.insert("reasoning_content".into(), Value::String(reasoning));
                 }
                 if !calls.is_empty() {
                     value.insert(
@@ -439,6 +443,38 @@ pub(crate) fn openai_usage(value: &Value) -> Usage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::ProviderReplayState;
+
+    #[test]
+    fn multiple_reasoning_replay_parts_are_joined_for_chat_history() {
+        let input = openai_chat_messages(
+            "",
+            &[ProjectedMessage {
+                message_id: "assistant-1".into(),
+                role: Role::Assistant,
+                content: ProjectedContent::Assistant {
+                    text: "answer".into(),
+                    thinking: String::new(),
+                    replay_state: ProviderReplayState::combine(vec![
+                        ProviderReplayState {
+                            provider_kind: "openai_chat".into(),
+                            value: json!({"reasoning_content":"first"}),
+                        },
+                        ProviderReplayState {
+                            provider_kind: "openai_chat".into(),
+                            value: json!({"reasoning_content":"second"}),
+                        },
+                    ])
+                    .unwrap(),
+                    calls: Vec::new(),
+                },
+            }],
+        )
+        .unwrap();
+
+        assert_eq!(input[0]["reasoning_content"], "firstsecond");
+        assert_eq!(input[0]["content"], "answer");
+    }
 
     #[test]
     fn observed_tool_calls_outrank_ordinary_stop_reasons() {

@@ -20,6 +20,7 @@ use tower_http::{
 };
 use url::{Host, Url};
 
+pub use crate::model::{OverviewModelOption, OverviewSource};
 pub use service::{
     CallDetail, CallSummary, ControlService, DiscoveredModels, LegacyModelImportPreview,
     LegacyModelImportResult, ModelConnectivityResult, ModelDiscoveryInput, ObservabilitySettings,
@@ -121,6 +122,8 @@ pub fn api_router(service: ControlService) -> Router {
         )
         .route("/__byok-api__/api/models/order", put(models::reorder))
         .route("/__byok-api__/api/overview", get(overview::get))
+        .route("/__byok-api__/api/overview/models", get(overview::models))
+        .route("/__byok-api__/api/overview/sources", get(overview::sources))
         .route(
             "/__byok-api__/api/models/{model_hash}",
             put(models::update).delete(models::remove),
@@ -213,6 +216,22 @@ pub fn api_router(service: ControlService) -> Router {
         .route(
             "/__byok-api__/api/settings/pricing",
             get(settings::get_pricing_settings).put(settings::update_pricing_settings),
+        )
+        .route(
+            "/__byok-api__/api/settings/overview-sync",
+            get(settings::get_overview_sync).put(settings::update_overview_sync),
+        )
+        .route(
+            "/__byok-api__/api/settings/overview-sync/status",
+            get(settings::get_overview_sync_status),
+        )
+        .route(
+            "/__byok-api__/api/settings/overview-sync/flush",
+            post(settings::flush_overview_sync),
+        )
+        .route(
+            "/__byok-api__/api/settings/overview-sync/reset",
+            post(settings::reset_overview_sync),
         )
         .route(
             "/__byok-api__/api/harness/cursor/status",

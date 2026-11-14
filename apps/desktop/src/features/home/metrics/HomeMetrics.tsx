@@ -14,6 +14,8 @@ export type HomeMetricsData = {
   promptTokens: number;
   cacheReadTokens: number;
   cacheWriteTokens: number;
+  deviceCount?: number;
+  remote?: boolean;
 };
 
 function formatMetricValue(value: number) {
@@ -86,7 +88,8 @@ export function HomeMetrics({ data, refreshVersion = 0 }: { data: HomeMetricsDat
     }),
   ].join("\n");
   const callsTooltip = [
-    t("按历史 LLM 调用记录汇总，进行中的调用不计入。"),
+    data.remote ? t("按汇总中心收集的调用记录汇总，进行中的调用不计入。") : t("按历史 LLM 调用记录汇总，进行中的调用不计入。"),
+    data.remote && data.deviceCount ? t("参与汇总的设备：{count} 台", { count: formatInteger(data.deviceCount) }) : "",
     "",
     t("总调用：{count}", { count: formatMetricValue(data.llmCalls) }),
     t("成功调用：{count}", { count: formatMetricValue(data.successfulCalls) }),
@@ -146,7 +149,7 @@ export function HomeMetrics({ data, refreshVersion = 0 }: { data: HomeMetricsDat
           <div className={styles.secondary}>{t("成功 {successful} / 异常 {failed}", {
             successful: formatCompactInteger(data.successfulCalls),
             failed: formatCompactInteger(data.failedCalls),
-          })}</div>
+          })}{data.remote && data.deviceCount ? t(" · {count} 台设备", { count: formatCompactInteger(data.deviceCount) }) : ""}</div>
         </div>
       </article>
       <article className={styles.metric}>

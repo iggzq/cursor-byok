@@ -171,7 +171,7 @@ fn decode_assistant(value: &Value, internal_id: &str) -> Result<MessageContent> 
     let mut text = String::new();
     let mut thinking = String::new();
     let mut calls = Vec::new();
-    let mut replay_state = None;
+    let mut replay_states = Vec::new();
     for part in value
         .get("content")
         .and_then(Value::as_array)
@@ -185,12 +185,7 @@ fn decode_assistant(value: &Value, internal_id: &str) -> Result<MessageContent> 
             Some("reasoning") => {
                 thinking.push_str(part.get("text").and_then(Value::as_str).unwrap_or_default());
                 if let Some(signature) = part.get("signature").and_then(Value::as_str) {
-                    if replay_state.is_some() {
-                        return Err(Error::Protocol(
-                            "Cursor assistant has multiple reasoning signatures".into(),
-                        ));
-                    }
-                    replay_state = Some(decode_replay_state(signature)?);
+                    replay_states.push(decode_replay_state(signature)?);
                 }
             }
             Some("tool-call") => calls.push(ToolCallContent {
@@ -207,7 +202,7 @@ fn decode_assistant(value: &Value, internal_id: &str) -> Result<MessageContent> 
         thinking,
         tool_round_id: (!calls.is_empty())
             .then(|| ToolRoundId::new(format!("{internal_id}:tool-round"))),
-        replay_state,
+        replay_state: crate::model::ProviderReplayState::combine(replay_states)?,
         tool_calls: calls,
     })
 }

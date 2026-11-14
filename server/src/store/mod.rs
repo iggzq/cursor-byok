@@ -1,6 +1,7 @@
 //! Exposes the local persistence interface.
 mod cas;
 mod checkpoints;
+mod collection;
 mod conversations;
 mod cursor_traces;
 mod input_anchors;
@@ -18,6 +19,7 @@ mod tool_rounds;
 mod writer;
 
 pub use cas::*;
+pub use collection::{model_key, next_watermark};
 pub(crate) use cursor_traces::BufferedCursorTraceChunk;
 pub(crate) use llm_calls::{BufferedLlmChunk, ContextUsageAnchor};
 pub use runs::*;

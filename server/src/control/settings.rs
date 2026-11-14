@@ -8,9 +8,9 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::store::{
-    CommitPromptLocale, CommitSettings, DesktopSettings, ExternalApiSettings, PortSettings,
-    ProxySettings, ProxySettingsInput, StatisticsStorage, StatisticsStorageScope, TabSettings,
-    TokenPricingSettings,
+    CommitPromptLocale, CommitSettings, DesktopSettings, ExternalApiSettings, OverviewSyncSettings,
+    OverviewSyncStatus, PortSettings, ProxySettings, ProxySettingsInput, StatisticsStorage,
+    StatisticsStorageScope, TabSettings, TokenPricingSettings,
 };
 
 use super::{ControlService, ObservabilitySettings};
@@ -159,6 +159,37 @@ pub async fn update_pricing_settings(
     Json(settings): Json<TokenPricingSettings>,
 ) -> Result<Json<TokenPricingSettings>> {
     Ok(Json(service.set_pricing_settings(settings).await?))
+}
+
+pub async fn get_overview_sync(
+    State(service): State<ControlService>,
+) -> Result<Json<OverviewSyncSettings>> {
+    Ok(Json(service.overview_sync_settings().await?))
+}
+
+pub async fn update_overview_sync(
+    State(service): State<ControlService>,
+    Json(settings): Json<OverviewSyncSettings>,
+) -> Result<Json<OverviewSyncSettings>> {
+    Ok(Json(service.set_overview_sync_settings(settings).await?))
+}
+
+pub async fn get_overview_sync_status(
+    State(service): State<ControlService>,
+) -> Result<Json<OverviewSyncStatus>> {
+    Ok(Json(service.overview_sync_status().await?))
+}
+
+pub async fn flush_overview_sync(
+    State(service): State<ControlService>,
+) -> Result<Json<OverviewSyncStatus>> {
+    Ok(Json(service.flush_overview_sync().await?))
+}
+
+pub async fn reset_overview_sync(
+    State(service): State<ControlService>,
+) -> Result<Json<OverviewSyncStatus>> {
+    Ok(Json(service.reset_overview_sync().await?))
 }
 
 fn requested_commit_locale(headers: &HeaderMap) -> CommitPromptLocale {

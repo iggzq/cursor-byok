@@ -1,0 +1,64 @@
+# syntax=docker/dockerfile:1.7
+#
+# Standalone overview aggregation center.
+# Members push to /byok/v1/overview/ingest and read /byok/v1/overview back.
+#
+# Build for an x86_64 Linux server from any host architecture:
+#   docker build --platform linux/amd64 -f server/Dockerfile.collector -t cursor-overview-collector .
+#
+# The binary links glibc dynamically, so the builder base decides the oldest
+# supported target. bookworm needs glibc >= 2.34 (Ubuntu 22.04+, Aliyun Linux 3
+# is 2.32, so it fails there). Build with bullseye for glibc 2.31 compatibility:
+#   docker build --platform linux/amd64 \
+#     --build-arg BUILDER_IMAGE=rust:1-bullseye \
+#     --build-arg RUNTIME_IMAGE=debian:bullseye-slim \
+#     -f server/Dockerfile.collector -t cursor-overview-collector:bullseye .
+#
+# Run:
+#   docker run -p 4399:4399 -v collector-data:/data \
+#     -e CURSOR_OVERVIEW_COLLECTOR_API_KEY=change-me cursor-overview-collector
+
+ARG BUILDER_IMAGE=rust:1-bookworm
+ARG RUNTIME_IMAGE=debian:bookworm-slim
+
+FROM ${BUILDER_IMAGE} AS builder
+WORKDIR /src
+# The workspace declares every member in Cargo.toml, so all member manifests must
+# exist even though only the collector binary is built.
+COPY Cargo.toml Cargo.lock ./
+COPY server/ server/
+COPY crates/ crates/
+COPY support/ support/
+COPY apps/desktop/src-tauri/Cargo.toml apps/desktop/src-tauri/Cargo.toml
+COPY apps/desktop/src-tauri/build.rs apps/desktop/src-tauri/build.rs
+COPY apps/desktop/src-tauri/src/ apps/desktop/src-tauri/src/
+COPY apps/desktop/src-tauri/capabilities/ apps/desktop/src-tauri/capabilities/
+COPY apps/desktop/src-tauri/icons/ apps/desktop/src-tauri/icons/
+COPY apps/desktop/src-tauri/tauri.conf.json apps/desktop/src-tauri/tauri.conf.json
+COPY protocols/cursor/ protocols/cursor/
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/src/target \
+    cargo build --release --locked --package cursor-server --bin cursor-overview-collector && \
+    cp target/release/cursor-overview-collector /tmp/cursor-overview-collector
+
+ARG RUNTIME_IMAGE
+FROM ${RUNTIME_IMAGE}
+RUN apt-get update && \
+    apt-get install --yes --no-install-recommends ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/* && \
+    useradd --system --uid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin collector && \
+    mkdir -p /data && chown collector:collector /data
+
+COPY --from=builder /tmp/cursor-overview-collector /usr/local/bin/cursor-overview-collector
+
+ENV CURSOR_OVERVIEW_COLLECTOR_ADDR=0.0.0.0:4399 \
+    CURSOR_DATABASE_URL=sqlite:///data/overview-collector.db \
+    RUST_LOG=cursor_server=info
+
+USER collector
+EXPOSE 4399
+VOLUME ["/data"]
+HEALTHCHECK --interval=15s --timeout=3s --retries=5 \
+    CMD curl --fail --silent http://127.0.0.1:4399/healthz || exit 1
+ENTRYPOINT ["/usr/local/bin/cursor-overview-collector"]

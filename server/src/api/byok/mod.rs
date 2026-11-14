@@ -89,16 +89,7 @@ async fn authorized(
 }
 
 fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
-    if left.len() != right.len() {
-        return false;
-    }
-    let difference = left
-        .iter()
-        .zip(right)
-        .fold(0_u8, |difference, (left, right)| {
-            difference | (left ^ right)
-        });
-    difference == 0
+    crate::collection::constant_time_eq(left, right)
 }
 
 async fn list_models(State(state): State<ApiState>, headers: HeaderMap) -> Response {

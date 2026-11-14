@@ -215,16 +215,29 @@ fn wire_content(content: &ProjectedContent, model: &str) -> Result<Value> {
             calls,
         } => {
             let mut parts = Vec::new();
-            if !thinking.is_empty() || replay_state.is_some() {
-                let mut reasoning = json!({
-                    "type": "reasoning",
-                    "text": thinking,
-                    "providerOptions": {"cursor": {"modelName": model}},
-                });
-                if let Some(replay_state) = replay_state {
-                    reasoning["signature"] = Value::String(encode_replay_state(replay_state)?);
+            let replay_parts: Vec<(&str, &Value)> = match replay_state {
+                Some(replay_state) => replay_state.parts()?,
+                None => Vec::new(),
+            };
+            if replay_parts.is_empty() {
+                if !thinking.is_empty() {
+                    parts.push(json!({
+                        "type": "reasoning",
+                        "text": thinking,
+                        "providerOptions": {"cursor": {"modelName": model}},
+                    }));
                 }
-                parts.push(reasoning);
+            } else {
+                for (index, (provider_kind, value)) in replay_parts.into_iter().enumerate() {
+                    let mut reasoning = json!({
+                        "type": "reasoning",
+                        "text": if index == 0 { thinking.as_str() } else { "" },
+                        "providerOptions": {"cursor": {"modelName": model}},
+                    });
+                    reasoning["signature"] =
+                        Value::String(encode_replay_state(provider_kind, value)?);
+                    parts.push(reasoning);
+                }
             }
             if !text.is_empty() {
                 parts.push(json!({"type":"text", "text":text}));
@@ -250,17 +263,20 @@ fn wire_content(content: &ProjectedContent, model: &str) -> Result<Value> {
     })
 }
 
-fn encode_replay_state(replay_state: &crate::model::ProviderReplayState) -> Result<String> {
-    if replay_state.provider_kind == "cursor_opaque" {
-        return replay_state
-            .value
+fn encode_replay_state(provider_kind: &str, value: &Value) -> Result<String> {
+    if provider_kind == "cursor_opaque" {
+        return value
             .as_str()
             .map(str::to_string)
             .ok_or_else(|| Error::Protocol("Cursor opaque replay state is not a string".into()));
     }
+    let replay_state = crate::model::ProviderReplayState {
+        provider_kind: provider_kind.into(),
+        value: value.clone(),
+    };
     Ok(format!(
         "{REPLAY_ENVELOPE_PREFIX}{}",
-        STANDARD.encode(serde_json::to_vec(replay_state)?)
+        STANDARD.encode(serde_json::to_vec(&replay_state)?)
     ))
 }
 

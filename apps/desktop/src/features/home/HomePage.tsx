@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, pluginText, type Overview } from "../../shared/api";
+import { api, pluginText, type Overview, type OverviewModelOption } from "../../shared/api";
 import { ContributionCalendarChart } from "./charts/ContributionCalendarChart";
 import { DailyTokenUsageChart } from "./charts/DailyTokenUsageChart";
 import { HomeMetrics } from "./metrics/HomeMetrics";
@@ -53,7 +53,7 @@ function presetRange(preset: Exclude<OverviewRangePreset, "custom">, now = new D
 }
 
 export function HomePage() {
-  const { overview, busy, models, plugins } = useAppStore();
+  const { overview, busy, models, plugins, overviewSync } = useAppStore();
   const { locale } = useI18n();
   const [preset, setPreset] = useState<OverviewRangePreset>("month");
   const [quick, setQuick] = useState<QuickPreset | null>(null);
@@ -66,7 +66,28 @@ export function HomePage() {
   const [rangeOverview, setRangeOverview] = useState<Overview | null>(null);
   const [rangeBusy, setRangeBusy] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const [remoteModels, setRemoteModels] = useState<OverviewModelOption[]>([]);
   const selectedRange = preset === "custom" ? customRange : presetRange(preset);
+  const remoteMode = overviewSync.mode === "remote";
+
+  useEffect(() => {
+    if (!remoteMode) {
+      setRemoteModels([]);
+      return;
+    }
+    let active = true;
+    void api.overviewModels().then((next) => {
+      if (active) setRemoteModels(next);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [remoteMode, refreshVersion]);
+
+  // Local hashes and collected keys are different namespaces, so a mode switch
+  // must not carry a stale model filter across.
+  useEffect(() => {
+    setSelectedModels([]);
+    setAppliedModels([]);
+  }, [remoteMode]);
 
   useEffect(() => {
     if (!selectedRange) return;
@@ -81,7 +102,7 @@ export function HomePage() {
       if (active) setRangeBusy(false);
     });
     return () => { active = false; };
-  }, [preset, customRange, overview, refreshVersion, appliedModels]);
+  }, [preset, customRange, overview, refreshVersion, appliedModels, remoteMode]);
 
   const filteredOverview = rangeOverview ?? overview;
   const dailyTokenUsage = filteredOverview.token_usage_series.map((bucket) => ({
@@ -100,6 +121,8 @@ export function HomePage() {
     promptTokens: filteredOverview.metrics.prompt_tokens,
     cacheReadTokens: filteredOverview.metrics.cache_read_tokens,
     cacheWriteTokens: filteredOverview.metrics.cache_write_tokens,
+    deviceCount: filteredOverview.device_count ?? 0,
+    remote: remoteMode,
   };
   const openCustom = (open: boolean) => {
     if (open && !customStart && !customEnd) {
@@ -140,23 +163,30 @@ export function HomePage() {
     setRefreshVersion((version) => version + 1);
   };
   const iconFor = (type: string) => type === "anthropic" ? claudeIcon : openAiIcon;
-  const modelOptions = [
-    ...models.map((model) => ({
-      value: model.model_hash,
-      label: model.display_name,
-      group: modelProviderName(model),
-      icon: iconFor(model.type),
-    })),
-    ...plugins.flatMap((plugin) => plugin.providers.flatMap((provider) =>
-      provider.configured ? provider.models.filter((model) => model.enabled).map((model) => ({
-        value: model.id,
-        label: model.displayName,
-        group: pluginText(provider.displayName, locale) || model.pluginName,
-        iconSrc: model.icon || undefined,
-        icon: model.icon ? undefined : flatColorOrganizationIcon,
-      })) : [],
-    )),
-  ];
+  const modelOptions = remoteMode
+    ? remoteModels.map((model) => ({
+      value: model.key,
+      label: model.label,
+      group: t("全部设备"),
+      icon: flatColorOrganizationIcon,
+    }))
+    : [
+      ...models.map((model) => ({
+        value: model.model_hash,
+        label: model.display_name,
+        group: modelProviderName(model),
+        icon: iconFor(model.type),
+      })),
+      ...plugins.flatMap((plugin) => plugin.providers.flatMap((provider) =>
+        provider.configured ? provider.models.filter((model) => model.enabled).map((model) => ({
+          value: model.id,
+          label: model.displayName,
+          group: pluginText(provider.displayName, locale) || model.pluginName,
+          iconSrc: model.icon || undefined,
+          icon: model.icon ? undefined : flatColorOrganizationIcon,
+        })) : [],
+      )),
+    ];
   const sections: VirtualPageSection[] = [
     {
       key: "daily-token-usage",

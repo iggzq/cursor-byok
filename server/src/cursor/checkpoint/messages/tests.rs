@@ -269,3 +269,34 @@ fn opaque_cursor_reasoning_signature_round_trips_without_decoding() {
     let encoded = wire_message(&projected[0], "model", None).unwrap();
     assert_eq!(encoded["content"][0]["signature"], signature);
 }
+
+#[test]
+fn multiple_cursor_reasoning_signatures_are_preserved_in_order() {
+    let wire = json!({
+        "role": "assistant",
+        "id": "1",
+        "content": [
+            {"type":"reasoning", "text":"first", "signature":"signature-a"},
+            {"type":"reasoning", "text":"second", "signature":"signature-b"},
+            {"type":"text", "text":"answer"},
+        ],
+    });
+    let message = decode(
+        serde_json::to_vec(&wire).unwrap().as_slice(),
+        "cursor-root:multiple-reasoning".into(),
+    )
+    .unwrap();
+
+    let projected = project_messages(&[message]).unwrap();
+    let encoded = wire_message(&projected[0], "model", None).unwrap();
+    let reasoning = encoded["content"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|part| part["type"] == "reasoning")
+        .collect::<Vec<_>>();
+
+    assert_eq!(reasoning.len(), 2);
+    assert_eq!(reasoning[0]["signature"], "signature-a");
+    assert_eq!(reasoning[1]["signature"], "signature-b");
+}

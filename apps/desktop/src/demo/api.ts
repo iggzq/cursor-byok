@@ -5,6 +5,8 @@ import type {
   LlmCall,
   Model,
   Overview,
+  OverviewSyncSettings,
+  OverviewSyncStatus,
   OverviewTokenUsageBucket,
   ProxySettings,
   StatisticsStorage,
@@ -96,6 +98,14 @@ let proxySettings: ProxySettings = {
   has_password: false,
 };
 let tabSettings: TabSettings = { mode: "public", address: "" };
+let overviewSyncSettings: OverviewSyncSettings = {
+  mode: "local",
+  center_url: "",
+  api_key: "",
+  device_id: "demo-device",
+  device_name: "Demo Machine",
+};
+let overviewSyncStatus: OverviewSyncStatus = { pending_calls: 0, last_push_at_ms: null, last_error: null };
 let storage: StatisticsStorage = { call_count: calls.length, trace_count: calls.length };
 
 export function installDemoApi() {
@@ -125,6 +135,8 @@ export function installDemoApi() {
       return method === "DELETE" ? empty() : json(models[0]);
     }
     if (path === "/overview") return json(createOverview(url.searchParams));
+    if (path === "/overview/models") return json([{ key: "openai-chat:gpt-5", label: "GPT-5" }]);
+    if (path === "/overview/sources") return json([]);
     if (path === "/llm-calls") return json(calls);
     if (path.startsWith("/llm-calls/")) return json(createCallDetail(path.slice("/llm-calls/".length)));
     if (path === "/harness/cursor/status") return json(harnessStatus);
@@ -173,6 +185,20 @@ export function installDemoApi() {
     }
     if (path === "/settings/desktop" && method === "GET") return json({ silent_start: false, show_dock_icon: true });
     if (path === "/settings/desktop") return json(body);
+    if (path === "/settings/overview-sync" && method === "GET") return json(overviewSyncSettings);
+    if (path === "/settings/overview-sync") {
+      overviewSyncSettings = { ...overviewSyncSettings, ...(body as Partial<OverviewSyncSettings>) };
+      return json(overviewSyncSettings);
+    }
+    if (path === "/settings/overview-sync/status") return json(overviewSyncStatus);
+    if (path === "/settings/overview-sync/flush") {
+      overviewSyncStatus = { ...overviewSyncStatus, pending_calls: 0, last_push_at_ms: FIXED_NOW, last_error: null };
+      return json(overviewSyncStatus);
+    }
+    if (path === "/settings/overview-sync/reset") {
+      overviewSyncStatus = { ...overviewSyncStatus, pending_calls: calls.length, last_error: null };
+      return json(overviewSyncStatus);
+    }
     if (path === "/desktop/open-external-url") {
       const target = (body as { url?: string } | null)?.url;
       if (target) {
@@ -255,6 +281,7 @@ function createOverview(params: URLSearchParams): Overview {
     },
     token_usage_granularity: granularity,
     token_usage_series: series,
+    device_count: 0,
   };
 }
 

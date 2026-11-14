@@ -372,6 +372,35 @@ export interface Overview {
   metrics: OverviewMetrics;
   token_usage_granularity: TokenUsageGranularity;
   token_usage_series: OverviewTokenUsageBucket[];
+  device_count: number;
+}
+
+export type OverviewMode = "local" | "remote";
+
+export interface OverviewSyncSettings {
+  mode: OverviewMode;
+  center_url: string;
+  api_key: string;
+  device_id: string;
+  device_name: string;
+}
+
+export interface OverviewSyncStatus {
+  pending_calls: number;
+  last_push_at_ms: number | null;
+  last_error: string | null;
+}
+
+export interface OverviewModelOption {
+  key: string;
+  label: string;
+}
+
+export interface OverviewSource {
+  source_id: string;
+  name: string;
+  last_push_at_ms: number;
+  call_count: number;
 }
 
 export interface LlmCall {
@@ -496,6 +525,13 @@ export const api = {
     const query = params.toString();
     return request<Overview>(`/overview${query ? `?${query}` : ""}`);
   },
+  overviewModels: () => request<OverviewModelOption[]>("/overview/models"),
+  overviewSources: () => request<OverviewSource[]>("/overview/sources"),
+  overviewSyncSettings: () => request<OverviewSyncSettings>("/settings/overview-sync"),
+  setOverviewSyncSettings: (settings: OverviewSyncSettings) => request<OverviewSyncSettings>("/settings/overview-sync", { method: "PUT", body: JSON.stringify(settings) }),
+  overviewSyncStatus: () => request<OverviewSyncStatus>("/settings/overview-sync/status"),
+  flushOverviewSync: () => request<OverviewSyncStatus>("/settings/overview-sync/flush", { method: "POST" }),
+  resetOverviewSync: () => request<OverviewSyncStatus>("/settings/overview-sync/reset", { method: "POST" }),
   cursorHarness: () => request<CursorHarnessStatus>("/harness/cursor/status"),
   initializeCursorCa: () => request<CursorHarnessStatus>("/harness/cursor/ca/initialize", { method: "POST" }),
   plugins: () => request<PluginDescriptor[]>("/plugins"),

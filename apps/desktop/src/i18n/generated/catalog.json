@@ -21,7 +21,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 92,
+          "line": 95,
           "column": 5
         }
       ]
@@ -63,7 +63,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 112,
+          "line": 115,
           "column": 5
         }
       ]
@@ -94,7 +94,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 127,
+          "line": 130,
           "column": 5
         }
       ]
@@ -131,7 +131,7 @@
         },
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 183,
+          "line": 184,
           "column": 82
         },
         {
@@ -192,6 +192,18 @@
         }
       ]
     },
+    "070848a15a5684b8": {
+      "source": "同步进度已重置，将重新上传本机历史记录",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 126,
+          "column": 15
+        }
+      ]
+    },
     "076832c1b2de22c3": {
       "source": "缓存写入：{tokens}",
       "kind": "template",
@@ -201,7 +213,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 104,
+          "line": 107,
           "column": 5
         }
       ]
@@ -215,7 +227,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 101,
+          "line": 104,
           "column": 5
         }
       ]
@@ -283,7 +295,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 160,
+          "line": 163,
           "column": 40
         }
       ]
@@ -299,7 +311,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 122,
+          "line": 125,
           "column": 5
         }
       ]
@@ -318,6 +330,18 @@
           "file": "features/plugins/PluginResourcePanels.tsx",
           "line": 328,
           "column": 72
+        }
+      ]
+    },
+    "0c086a024610b0f3": {
+      "source": "用于在多台设备之间区分数据来源。",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 174,
+          "column": 44
         }
       ]
     },
@@ -372,7 +396,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 100,
+          "line": 101,
           "column": 38
         }
       ]
@@ -401,7 +425,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 279,
+          "line": 281,
           "column": 26
         }
       ]
@@ -484,6 +508,18 @@
         }
       ]
     },
+    "11b7c7173da21db8": {
+      "source": "重新上传",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 209,
+          "column": 38
+        }
+      ]
+    },
     "12430375c0db4727": {
       "source": "按配置的 Token 价格估算。",
       "kind": "text",
@@ -491,7 +527,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 109,
+          "line": 112,
           "column": 5
         }
       ]
@@ -503,7 +539,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 153,
+          "line": 156,
           "column": 40
         }
       ]
@@ -573,7 +609,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 139,
+          "line": 142,
           "column": 40
         }
       ]
@@ -643,8 +679,20 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 91,
+          "line": 94,
           "column": 5
+        }
+      ]
+    },
+    "17d89829174fc115": {
+      "source": "概览数据",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 134,
+          "column": 29
         }
       ]
     },
@@ -781,7 +829,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 283,
+          "line": 285,
           "column": 131
         }
       ]
@@ -795,7 +843,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 99,
+          "line": 102,
           "column": 5
         }
       ]
@@ -807,17 +855,17 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 70,
+          "line": 71,
           "column": 42
         },
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 188,
+          "line": 189,
           "column": 22
         },
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 215,
+          "line": 216,
           "column": 58
         }
       ]
@@ -829,7 +877,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 82,
+          "line": 84,
           "column": 5
         }
       ]
@@ -895,6 +943,20 @@
         }
       ]
     },
+    "20268632269e26b8": {
+      "source": "已连接汇总中心（{count} 台设备）",
+      "kind": "template",
+      "placeholders": [
+        "count"
+      ],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 111,
+          "column": 17
+        }
+      ]
+    },
     "20e14248fd4fb981": {
       "source": "{label} 必须是大于 0 的整数",
       "kind": "template",
@@ -916,7 +978,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 256,
+          "line": 258,
           "column": 43
         }
       ]
@@ -940,7 +1002,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 125,
+          "line": 126,
           "column": 15
         }
       ]
@@ -964,7 +1026,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 306,
+          "line": 308,
           "column": 24
         }
       ]
@@ -1054,8 +1116,8 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 89,
-          "column": 5
+          "line": 91,
+          "column": 52
         }
       ]
     },
@@ -1129,6 +1191,11 @@
           "column": 21
         },
         {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 232,
+          "column": 20
+        },
+        {
           "file": "features/settings/PricingSettingsCard.tsx",
           "line": 90,
           "column": 64
@@ -1140,12 +1207,12 @@
         },
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 179,
+          "line": 180,
           "column": 81
         },
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 298,
+          "line": 300,
           "column": 22
         },
         {
@@ -1191,8 +1258,20 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 81,
+          "line": 83,
           "column": 5
+        }
+      ]
+    },
+    "2dc2db56c7af11a0": {
+      "source": "部署汇总中心",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 222,
+          "column": 18
         }
       ]
     },
@@ -1225,6 +1304,18 @@
         }
       ]
     },
+    "2f377a4715812297": {
+      "source": "同步状态",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 185,
+          "column": 22
+        }
+      ]
+    },
     "2f4a361f878176d1": {
       "source": "{label} 必须是有效 JSON",
       "kind": "template",
@@ -1246,7 +1337,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 149,
+          "line": 150,
           "column": 15
         }
       ]
@@ -1395,9 +1486,26 @@
           "column": 101
         },
         {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 189,
+          "column": 19
+        },
+        {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 241,
+          "line": 243,
           "column": 27
+        }
+      ]
+    },
+    "36e7a43a1c674e50": {
+      "source": "立即同步",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 199,
+          "column": 39
         }
       ]
     },
@@ -1452,7 +1560,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 146,
+          "line": 149,
           "column": 46
         }
       ]
@@ -1464,7 +1572,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 308,
+          "line": 310,
           "column": 42
         }
       ]
@@ -1522,6 +1630,18 @@
         }
       ]
     },
+    "3a1abf3422d22d7d": {
+      "source": "检测中…",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 196,
+          "column": 26
+        }
+      ]
+    },
     "3a3f595df70ec8ff": {
       "source": "清理存储空间",
       "kind": "text",
@@ -1529,7 +1649,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 290,
+          "line": 292,
           "column": 14
         }
       ]
@@ -1558,7 +1678,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 241,
+          "line": 243,
           "column": 39
         }
       ]
@@ -1625,13 +1745,25 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 248,
+          "line": 250,
           "column": 22
         },
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 254,
+          "line": 256,
           "column": 26
+        }
+      ]
+    },
+    "3d335dd720b64f0b": {
+      "source": "汇总中心地址",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 157,
+          "column": 27
         }
       ]
     },
@@ -1700,7 +1832,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 156,
+          "line": 157,
           "column": 66
         }
       ]
@@ -1712,8 +1844,20 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 274,
+          "line": 276,
           "column": 52
+        }
+      ]
+    },
+    "424f7d34a6c5f0bd": {
+      "source": "本地模式",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 148,
+          "column": 40
         }
       ]
     },
@@ -1763,6 +1907,18 @@
         }
       ]
     },
+    "439e864e8324379f": {
+      "source": "尚未同步",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 21,
+          "column": 22
+        }
+      ]
+    },
     "43cb41d62de2d179": {
       "source": "代理需要认证",
       "kind": "text",
@@ -1772,6 +1928,18 @@
           "file": "features/settings/ProxySettingsCard.tsx",
           "line": 55,
           "column": 59
+        }
+      ]
+    },
+    "45428fab7b56c41c": {
+      "source": "汇总中心是独立服务，部署在中心服务器上，与桌面应用互不影响：",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 223,
+          "column": 17
         }
       ]
     },
@@ -1798,7 +1966,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 94,
+          "line": 97,
           "column": 5
         }
       ]
@@ -1865,6 +2033,18 @@
         }
       ]
     },
+    "48fe2bb6d7e9f02e": {
+      "source": "将清空本机同步进度并重新上传全部历史调用记录。中心按调用 ID 去重，已有数据不会重复；数据量较大时上传需要一段时间。",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 238,
+          "column": 10
+        }
+      ]
+    },
     "492042ed1fdc29ed": {
       "source": "版本 {version} 可以安装",
       "kind": "template",
@@ -1908,7 +2088,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 26,
+          "line": 28,
           "column": 27
         },
         {
@@ -2010,6 +2190,18 @@
         }
       ]
     },
+    "4c2cdf2f28fb8da6": {
+      "source": "默认监听 0.0.0.0:4399，可用 CURSOR_OVERVIEW_COLLECTOR_ADDR 与 CURSOR_DATABASE_URL 调整。桌面端永远只作为数据来源，不会开放外部端口。",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 225,
+          "column": 17
+        }
+      ]
+    },
     "4d0680f9efaef147": {
       "source": "未读",
       "kind": "text",
@@ -2036,6 +2228,18 @@
           "file": "features/plugins/PluginResourcePanels.tsx",
           "line": 490,
           "column": 42
+        }
+      ]
+    },
+    "4e2238b74ec75987": {
+      "source": "同步中…",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 199,
+          "column": 27
         }
       ]
     },
@@ -2157,7 +2361,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 177,
+          "line": 178,
           "column": 26
         }
       ]
@@ -2227,6 +2431,18 @@
         }
       ]
     },
+    "5656311485bd5992": {
+      "source": "已完成一次远程同步",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 95,
+          "column": 15
+        }
+      ]
+    },
     "565678b3704a383d": {
       "source": "定价设置已保存",
       "kind": "text",
@@ -2268,7 +2484,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 234,
+          "line": 236,
           "column": 78
         }
       ]
@@ -2314,7 +2530,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 238,
+          "line": 240,
           "column": 21
         }
       ]
@@ -2445,7 +2661,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 133,
+          "line": 136,
           "column": 5
         }
       ]
@@ -2512,7 +2728,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 93,
+          "line": 96,
           "column": 5
         }
       ]
@@ -2538,7 +2754,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 103,
+          "line": 106,
           "column": 5
         }
       ]
@@ -2615,8 +2831,20 @@
       "refs": [
         {
           "file": "shared/api.ts",
-          "line": 521,
+          "line": 557,
           "column": 43
+        }
+      ]
+    },
+    "64f5b726d8e1cab9": {
+      "source": "重新上传历史",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 205,
+          "column": 22
         }
       ]
     },
@@ -2701,8 +2929,20 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 156,
+          "line": 159,
           "column": 46
+        }
+      ]
+    },
+    "65d8f92232ae77b0": {
+      "source": "设备名称",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 174,
+          "column": 27
         }
       ]
     },
@@ -2715,6 +2955,18 @@
           "file": "features/settings/PricingSettingsCard.tsx",
           "line": 102,
           "column": 17
+        }
+      ]
+    },
+    "67943ba6d0038222": {
+      "source": "全部设备",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/home/HomePage.tsx",
+          "line": 170,
+          "column": 14
         }
       ]
     },
@@ -2742,7 +2994,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 100,
+          "line": 101,
           "column": 55
         }
       ]
@@ -2844,6 +3096,18 @@
         }
       ]
     },
+    "6e6b50724e0d54fd": {
+      "source": "重置中…",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 209,
+          "column": 26
+        }
+      ]
+    },
     "6e86570183c3cdd0": {
       "source": "当前已是最新版本",
       "kind": "text",
@@ -2856,6 +3120,23 @@
         }
       ]
     },
+    "6e89737a00e10960": {
+      "source": "数据来源",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 140,
+          "column": 20
+        },
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 146,
+          "column": 24
+        }
+      ]
+    },
     "7005693f4f050bce": {
       "source": "缓存读写 {cost}",
       "kind": "template",
@@ -2865,7 +3146,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 163,
+          "line": 166,
           "column": 46
         }
       ]
@@ -2889,12 +3170,12 @@
       "refs": [
         {
           "file": "shared/store/appStore.ts",
-          "line": 218,
+          "line": 230,
           "column": 23
         },
         {
           "file": "shared/store/appStore.ts",
-          "line": 225,
+          "line": 237,
           "column": 25
         }
       ]
@@ -2906,8 +3187,20 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 167,
+          "line": 168,
           "column": 16
+        }
+      ]
+    },
+    "76d82eae0f4cc139": {
+      "source": "中心服务根地址，例如 http://10.0.0.5:4399，末尾不需要路径。",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 157,
+          "column": 46
         }
       ]
     },
@@ -2930,7 +3223,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 266,
+          "line": 268,
           "column": 26
         }
       ]
@@ -2954,7 +3247,7 @@
       "refs": [
         {
           "file": "shared/api.ts",
-          "line": 516,
+          "line": 552,
           "column": 43
         }
       ]
@@ -2966,7 +3259,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 137,
+          "line": 140,
           "column": 50
         }
       ]
@@ -2978,7 +3271,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 299,
+          "line": 301,
           "column": 23
         }
       ]
@@ -3045,8 +3338,23 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 143,
+          "line": 144,
           "column": 83
+        }
+      ]
+    },
+    "7e4da3a9fb891794": {
+      "source": "待推送 {pending} 条 · 最近成功 {time}",
+      "kind": "template",
+      "placeholders": [
+        "pending",
+        "time"
+      ],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 188,
+          "column": 19
         }
       ]
     },
@@ -3132,7 +3440,7 @@
       "refs": [
         {
           "file": "shared/api.ts",
-          "line": 460,
+          "line": 489,
           "column": 21
         }
       ]
@@ -3146,6 +3454,18 @@
           "file": "features/plugins/PluginManagementPage.tsx",
           "line": 105,
           "column": 25
+        }
+      ]
+    },
+    "823068072bd72a25": {
+      "source": "清空同步进度后重传本机全部历史记录；中心按调用 ID 去重，不会产生重复数据。切换中心或中心数据被清空后使用。",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 206,
+          "column": 21
         }
       ]
     },
@@ -3188,6 +3508,21 @@
           "file": "features/models/CursorModelEditor.tsx",
           "line": 159,
           "column": 334
+        }
+      ]
+    },
+    "840ddb01ca6547ff": {
+      "source": "{calls} 条 · 最近 {time}",
+      "kind": "template",
+      "placeholders": [
+        "calls",
+        "time"
+      ],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 215,
+          "column": 21
         }
       ]
     },
@@ -3307,7 +3642,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 54,
+          "line": 56,
           "column": 17
         }
       ]
@@ -3389,7 +3724,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 237,
+          "line": 239,
           "column": 22
         }
       ]
@@ -3420,6 +3755,18 @@
           "file": "features/models/CursorModelEditor.tsx",
           "line": 148,
           "column": 76
+        }
+      ]
+    },
+    "8e641c04aa33289c": {
+      "source": "远程汇总模式",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 149,
+          "column": 41
         }
       ]
     },
@@ -3504,7 +3851,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 159,
+          "line": 160,
           "column": 7
         }
       ]
@@ -3840,7 +4187,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 245,
+          "line": 247,
           "column": 26
         }
       ]
@@ -3876,7 +4223,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 63,
+          "line": 64,
           "column": 34
         }
       ]
@@ -3979,6 +4326,11 @@
           "column": 27
         },
         {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 135,
+          "column": 27
+        },
+        {
           "file": "features/settings/PricingSettingsCard.tsx",
           "line": 92,
           "column": 31
@@ -3990,7 +4342,7 @@
         },
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 180,
+          "line": 181,
           "column": 133
         },
         {
@@ -4031,6 +4383,18 @@
         }
       ]
     },
+    "a3a0db39e5cc6f5b": {
+      "source": "开始重新上传",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 233,
+          "column": 21
+        }
+      ]
+    },
     "a3ab741ceb188e9e": {
       "source": "未记录请求内容，请开启详细记录后重试。",
       "kind": "text",
@@ -4040,6 +4404,20 @@
           "file": "features/calls/CallDetails.tsx",
           "line": 59,
           "column": 44
+        }
+      ]
+    },
+    "a44496dfc7d57a83": {
+      "source": "参与汇总的设备：{count} 台",
+      "kind": "template",
+      "placeholders": [
+        "count"
+      ],
+      "refs": [
+        {
+          "file": "features/home/metrics/HomeMetrics.tsx",
+          "line": 92,
+          "column": 39
         }
       ]
     },
@@ -4211,6 +4589,18 @@
         }
       ]
     },
+    "ab4acf8e35defe8d": {
+      "source": "检测连接",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 196,
+          "column": 38
+        }
+      ]
+    },
     "ab9084a640fbb864": {
       "source": "全不选",
       "kind": "text",
@@ -4287,7 +4677,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 117,
+          "line": 120,
           "column": 5
         }
       ]
@@ -4396,6 +4786,18 @@
         }
       ]
     },
+    "b1fd4e1d3f096f23": {
+      "source": "本地模式只统计本机调用；远程汇总模式从独立部署的汇总中心读取各平台数据。",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 141,
+          "column": 19
+        }
+      ]
+    },
     "b254ff315d861346": {
       "source": "请重试初始化",
       "kind": "text",
@@ -4463,7 +4865,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 100,
+          "line": 103,
           "column": 5
         }
       ]
@@ -4514,7 +4916,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 156,
+          "line": 157,
           "column": 45
         }
       ]
@@ -4528,7 +4930,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 102,
+          "line": 105,
           "column": 5
         }
       ]
@@ -4540,8 +4942,20 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 282,
+          "line": 284,
           "column": 22
+        }
+      ]
+    },
+    "b7a5edb3b13e6acd": {
+      "source": "概览数据设置已保存",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 81,
+          "column": 15
         }
       ]
     },
@@ -4686,7 +5100,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 283,
+          "line": 285,
           "column": 31
         }
       ]
@@ -4698,8 +5112,32 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 274,
+          "line": 276,
           "column": 40
+        }
+      ]
+    },
+    "bca8dd87458f98dc": {
+      "source": "例如 MacBook",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 177,
+          "column": 26
+        }
+      ]
+    },
+    "bd1e4654cc20fa22": {
+      "source": "必须与中心服务启动时配置的 CURSOR_OVERVIEW_COLLECTOR_API_KEY 一致。",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 166,
+          "column": 44
         }
       ]
     },
@@ -4837,6 +5275,18 @@
         }
       ]
     },
+    "c893436a6e26fc67": {
+      "source": "按汇总中心收集的调用记录汇总，进行中的调用不计入。",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/home/metrics/HomeMetrics.tsx",
+          "line": 91,
+          "column": 19
+        }
+      ]
+    },
     "c8c14507b2d37395": {
       "source": "推理强度",
       "kind": "text",
@@ -4909,7 +5359,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 110,
+          "line": 113,
           "column": 5
         }
       ]
@@ -4972,12 +5422,12 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 165,
+          "line": 166,
           "column": 22
         },
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 171,
+          "line": 172,
           "column": 20
         }
       ]
@@ -4989,7 +5439,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 202,
+          "line": 203,
           "column": 21
         }
       ]
@@ -5018,6 +5468,18 @@
         }
       ]
     },
+    "d15d63ec41da6d57": {
+      "source": "重新上传全部历史记录？",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 230,
+          "column": 14
+        }
+      ]
+    },
     "d1a3d72618d1ed27": {
       "source": "所有调用汇总、详细内容和追踪记录都会被删除。模型配置、CA 和应用设置不会受到影响，此操作无法撤销。",
       "kind": "text",
@@ -5025,7 +5487,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 158,
+          "line": 159,
           "column": 7
         }
       ]
@@ -5321,6 +5783,18 @@
         }
       ]
     },
+    "dc0c54a86e965f80": {
+      "source": "汇总密钥",
+      "kind": "text",
+      "placeholders": [],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 166,
+          "column": 27
+        }
+      ]
+    },
     "ddde16f8839da3ce": {
       "source": "总请求",
       "kind": "text",
@@ -5364,7 +5838,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 97,
+          "line": 100,
           "column": 5
         }
       ]
@@ -5393,7 +5867,7 @@
         },
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 318,
+          "line": 320,
           "column": 30
         },
         {
@@ -5491,6 +5965,20 @@
           "file": "features/calls/CallDetails.tsx",
           "line": 19,
           "column": 6
+        }
+      ]
+    },
+    "e14f60843072abc7": {
+      "source": " · {count} 台设备",
+      "kind": "template",
+      "placeholders": [
+        "count"
+      ],
+      "refs": [
+        {
+          "file": "features/home/metrics/HomeMetrics.tsx",
+          "line": 152,
+          "column": 49
         }
       ]
     },
@@ -5592,7 +6080,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 143,
+          "line": 146,
           "column": 40
         }
       ]
@@ -5645,7 +6133,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 76,
+          "line": 77,
           "column": 17
         }
       ]
@@ -5739,7 +6227,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 162,
+          "line": 163,
           "column": 26
         }
       ]
@@ -5854,7 +6342,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 221,
+          "line": 222,
           "column": 16
         }
       ]
@@ -6015,7 +6503,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 249,
+          "line": 251,
           "column": 21
         }
       ]
@@ -6101,7 +6589,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 189,
+          "line": 190,
           "column": 21
         }
       ]
@@ -6191,7 +6679,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 83,
+          "line": 85,
           "column": 5
         }
       ]
@@ -6220,6 +6708,20 @@
         }
       ]
     },
+    "fcda356903406ef7": {
+      "source": "中心已收到 {count} 台设备的数据",
+      "kind": "template",
+      "placeholders": [
+        "count"
+      ],
+      "refs": [
+        {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 191,
+          "column": 44
+        }
+      ]
+    },
     "fd415f8e0097c832": {
       "source": "缓存读写已计入提示词侧统计。",
       "kind": "text",
@@ -6227,7 +6729,7 @@
       "refs": [
         {
           "file": "features/home/metrics/HomeMetrics.tsx",
-          "line": 106,
+          "line": 109,
           "column": 5
         }
       ]
@@ -6275,7 +6777,7 @@
       "refs": [
         {
           "file": "features/home/HomePage.tsx",
-          "line": 201,
+          "line": 231,
           "column": 25
         }
       ]
@@ -6299,7 +6801,7 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 309,
+          "line": 311,
           "column": 38
         }
       ]
@@ -6320,6 +6822,11 @@
           "column": 15
         },
         {
+          "file": "features/settings/OverviewSyncSettingsCard.tsx",
+          "line": 135,
+          "column": 15
+        },
+        {
           "file": "features/settings/PricingSettingsCard.tsx",
           "line": 92,
           "column": 19
@@ -6331,7 +6838,7 @@
         },
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 180,
+          "line": 181,
           "column": 121
         },
         {
@@ -6360,17 +6867,17 @@
       "refs": [
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 71,
+          "line": 72,
           "column": 46
         },
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 201,
+          "line": 202,
           "column": 22
         },
         {
           "file": "features/settings/SettingsPage.tsx",
-          "line": 216,
+          "line": 217,
           "column": 58
         }
       ]

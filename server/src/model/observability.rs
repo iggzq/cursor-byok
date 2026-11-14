@@ -223,9 +223,9 @@ pub use cursor_trace::*;
 mod overview {
     //! Read-only usage aggregates rendered by the desktop overview page.
 
-    use serde::Serialize;
+    use serde::{Deserialize, Serialize};
 
-    #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+    #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
     pub struct OverviewMetrics {
         pub llm_calls: i64,
         pub successful_calls: i64,
@@ -238,7 +238,7 @@ mod overview {
         pub output_tokens: i64,
     }
 
-    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
     #[serde(rename_all = "snake_case")]
     pub enum TokenUsageGranularity {
         Minute,
@@ -247,7 +247,7 @@ mod overview {
         Day,
     }
 
-    #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+    #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
     pub struct TokenUsageBucket {
         pub bucket_start_ms: i64,
         pub input_tokens: i64,
@@ -265,11 +265,57 @@ mod overview {
         }
     }
 
-    #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+    #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
     pub struct Overview {
         pub metrics: OverviewMetrics,
         pub token_usage_granularity: TokenUsageGranularity,
         pub token_usage_series: Vec<TokenUsageBucket>,
+        /// Number of machines contributing to a collected aggregate; 0 locally.
+        pub device_count: i64,
+    }
+
+    /// One finished call as pushed from a member machine to a collector.
+    #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+    pub struct CollectedCall {
+        pub call_id: String,
+        pub created_at_ms: i64,
+        pub finished_at_ms: i64,
+        pub request_type: String,
+        pub model_key: String,
+        pub display_name: String,
+        pub status: String,
+        #[serde(default)]
+        pub input_tokens: Option<i64>,
+        #[serde(default)]
+        pub output_tokens: Option<i64>,
+        #[serde(default)]
+        pub cache_read_tokens: Option<i64>,
+        #[serde(default)]
+        pub cache_write_tokens: Option<i64>,
+    }
+
+    /// Batch body accepted by the collector ingestion endpoint.
+    #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+    pub struct OverviewIngestBatch {
+        pub source_id: String,
+        pub source_name: String,
+        pub calls: Vec<CollectedCall>,
+    }
+
+    /// Model filter option for the collected overview.
+    #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct OverviewModelOption {
+        pub key: String,
+        pub label: String,
+    }
+
+    /// Collector source registry row, shown in the desktop settings card.
+    #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+    pub struct OverviewSource {
+        pub source_id: String,
+        pub name: String,
+        pub last_push_at_ms: i64,
+        pub call_count: i64,
     }
 }
 pub use overview::*;

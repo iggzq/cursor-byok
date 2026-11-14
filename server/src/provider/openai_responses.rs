@@ -408,20 +408,21 @@ fn responses_input(messages: &[ProjectedMessage]) -> Result<Vec<Value>> {
                 calls,
                 ..
             } => {
-                if let Some(state) = replay_state
-                    .as_ref()
-                    .filter(|state| state.provider_kind == "openai_responses")
-                {
+                if let Some(state) = replay_state.as_ref() {
                     let items = state
-                        .value
-                        .get("items")
-                        .and_then(Value::as_array)
-                        .ok_or_else(|| {
-                            Error::Protocol("OpenAI Responses replay state is missing items".into())
-                        })?;
+                        .values_for("openai_responses")?
+                        .into_iter()
+                        .flat_map(|value| {
+                            value
+                                .get("items")
+                                .and_then(Value::as_array)
+                                .into_iter()
+                                .flatten()
+                        })
+                        .collect::<Vec<_>>();
                     input.extend(
                         items
-                            .iter()
+                            .into_iter()
                             .map(response_reasoning_input)
                             .collect::<Result<Vec<_>>>()?,
                     );
@@ -579,6 +580,40 @@ mod tests {
                 "content": [],
                 "encrypted_content": "opaque"
             })]
+        );
+    }
+
+    #[test]
+    fn multiple_reasoning_replay_parts_are_appended_in_order() {
+        let replay_state = ProviderReplayState::combine(vec![
+            ProviderReplayState {
+                provider_kind: "openai_responses".into(),
+                value: json!({"items":[{"type":"reasoning","id":"item-1"}]}),
+            },
+            ProviderReplayState {
+                provider_kind: "openai_responses".into(),
+                value: json!({"items":[{"type":"reasoning","id":"item-2"}]}),
+            },
+        ])
+        .unwrap();
+        let messages = [ProjectedMessage {
+            message_id: "assistant-1".into(),
+            role: Role::Assistant,
+            content: ProjectedContent::Assistant {
+                text: "answer".into(),
+                thinking: String::new(),
+                replay_state,
+                calls: Vec::new(),
+            },
+        }];
+
+        assert_eq!(
+            responses_input(&messages).unwrap(),
+            vec![
+                json!({"type":"reasoning","id":"item-1"}),
+                json!({"type":"reasoning","id":"item-2"}),
+                json!({"type":"message","role":"assistant","content":[{"type":"output_text","text":"answer"}]}),
+            ]
         );
     }
 

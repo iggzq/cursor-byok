@@ -1,0 +1,20 @@
+services:
+  collector:
+    build:
+      context: .
+      dockerfile: server/Dockerfile.collector
+    image: cursor-overview-collector:local
+    restart: unless-stopped
+    ports:
+      - "4399:4399"
+    environment:
+      # Required. Members must send the same value as their 汇总密钥.
+      CURSOR_OVERVIEW_COLLECTOR_API_KEY: ${CURSOR_OVERVIEW_COLLECTOR_API_KEY:?set CURSOR_OVERVIEW_COLLECTOR_API_KEY}
+      CURSOR_OVERVIEW_COLLECTOR_ADDR: 0.0.0.0:4399
+      CURSOR_DATABASE_URL: sqlite:///data/overview-collector.db
+      RUST_LOG: ${RUST_LOG:-cursor_server=info}
+    volumes:
+      - collector-data:/data
+
+volumes:
+  collector-data:

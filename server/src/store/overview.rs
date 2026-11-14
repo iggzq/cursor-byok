@@ -20,6 +20,33 @@ const MINUTE_MS: i64 = 60_000;
 const HOUR_MS: i64 = 60 * MINUTE_MS;
 const DAY_MS: i64 = 24 * HOUR_MS;
 
+/// Which fact table an overview aggregate reads.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum OverviewTable {
+    /// This machine's own call log.
+    Local,
+    /// Call records pushed by member machines.
+    Collected,
+}
+
+impl OverviewTable {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Local => "llm_calls",
+            Self::Collected => "overview_collected_calls",
+        }
+    }
+
+    /// Every machine computes the same stable model key, while the local table
+    /// still filters on the locally derived model hash.
+    fn model_column(self) -> &'static str {
+        match self {
+            Self::Local => "model_hash",
+            Self::Collected => "model_key",
+        }
+    }
+}
+
 impl Store {
     pub async fn overview(
         &self,
@@ -28,23 +55,93 @@ impl Store {
         model_hashes: Option<&str>,
         bucket_ms: Option<i64>,
     ) -> Result<Overview> {
-        let call_row = sqlx::query(
+        let mut overview = self
+            .aggregate(
+                OverviewTable::Local,
+                start_ms,
+                end_ms,
+                model_hashes,
+                bucket_ms,
+            )
+            .await?;
+        overview.device_count = 0;
+        Ok(overview)
+    }
+
+    /// Aggregate over call records pushed by member machines.
+    pub async fn collected_overview(
+        &self,
+        start_ms: Option<i64>,
+        end_ms: Option<i64>,
+        model_keys: Option<&str>,
+        bucket_ms: Option<i64>,
+    ) -> Result<Overview> {
+        let mut overview = self
+            .aggregate(
+                OverviewTable::Collected,
+                start_ms,
+                end_ms,
+                model_keys,
+                bucket_ms,
+            )
+            .await?;
+        overview.device_count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM overview_sources WHERE call_count > 0",
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(overview)
+    }
+
+    /// Model filter options present in the collected aggregates.
+    pub async fn collected_overview_models(
+        &self,
+    ) -> Result<Vec<crate::model::OverviewModelOption>> {
+        let rows = sqlx::query(
+            "SELECT model_key, MAX(display_name) AS display_name
+             FROM overview_collected_calls
+             GROUP BY model_key
+             ORDER BY display_name",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        rows.into_iter()
+            .map(|row| {
+                Ok(crate::model::OverviewModelOption {
+                    key: row.try_get("model_key")?,
+                    label: row.try_get("display_name")?,
+                })
+            })
+            .collect()
+    }
+
+    async fn aggregate(
+        &self,
+        table: OverviewTable,
+        start_ms: Option<i64>,
+        end_ms: Option<i64>,
+        models: Option<&str>,
+        bucket_ms: Option<i64>,
+    ) -> Result<Overview> {
+        let table_name = table.name();
+        let model_column = table.model_column();
+        let call_row = sqlx::query(&format!(
             "SELECT
                 COUNT(*) AS llm_calls,
                 COALESCE(SUM(status = 'completed'), 0) AS successful_calls,
                 COALESCE(SUM(status != 'completed'), 0) AS failed_calls
-             FROM llm_calls
+             FROM {table_name}
              WHERE status != 'running'
                AND (? IS NULL OR created_at_ms >= ?)
                AND (? IS NULL OR created_at_ms < ?)
-               AND (? IS NULL OR model_hash IN (SELECT value FROM json_each(?)))",
-        )
+               AND (? IS NULL OR {model_column} IN (SELECT value FROM json_each(?)))"
+        ))
         .bind(start_ms)
         .bind(start_ms)
         .bind(end_ms)
         .bind(end_ms)
-        .bind(model_hashes)
-        .bind(model_hashes)
+        .bind(models)
+        .bind(models)
         .fetch_one(&self.pool)
         .await?;
         let token_row = sqlx::query(&format!(
@@ -53,18 +150,18 @@ impl Store {
                 COALESCE(SUM(COALESCE(cache_read_tokens, 0)), 0) AS cache_read_tokens,
                 COALESCE(SUM(COALESCE(cache_write_tokens, 0)), 0) AS cache_write_tokens,
                 COALESCE(SUM(COALESCE(output_tokens, 0)), 0) AS output_tokens
-             FROM llm_calls
+             FROM {table_name}
              WHERE (? IS NULL OR created_at_ms >= ?)
                AND (? IS NULL OR created_at_ms < ?)
-               AND (? IS NULL OR model_hash IN (SELECT value FROM json_each(?)))",
+               AND (? IS NULL OR {model_column} IN (SELECT value FROM json_each(?)))",
             fresh_input = fresh_input_sql(),
         ))
         .bind(start_ms)
         .bind(start_ms)
         .bind(end_ms)
         .bind(end_ms)
-        .bind(model_hashes)
-        .bind(model_hashes)
+        .bind(models)
+        .bind(models)
         .fetch_one(&self.pool)
         .await?;
 
@@ -94,10 +191,10 @@ impl Store {
                 COALESCE(SUM(COALESCE(cache_read_tokens, 0)), 0) AS cache_read_tokens,
                 COALESCE(SUM(COALESCE(cache_write_tokens, 0)), 0) AS cache_write_tokens,
                 COALESCE(SUM(COALESCE(output_tokens, 0)), 0) AS output_tokens
-             FROM llm_calls
+             FROM {table_name}
              WHERE created_at_ms >= ?
                AND (? IS NULL OR created_at_ms < ?)
-               AND (? IS NULL OR model_hash IN (SELECT value FROM json_each(?)))
+               AND (? IS NULL OR {model_column} IN (SELECT value FROM json_each(?)))
              GROUP BY bucket_start_ms
              ORDER BY bucket_start_ms",
             fresh_input = fresh_input_sql(),
@@ -105,8 +202,8 @@ impl Store {
         .bind(start_ms.unwrap_or(series_start_ms).max(series_start_ms))
         .bind(end_ms)
         .bind(end_ms)
-        .bind(model_hashes)
-        .bind(model_hashes)
+        .bind(models)
+        .bind(models)
         .fetch_all(&self.pool)
         .await?;
         let mut recorded = rows
@@ -141,6 +238,7 @@ impl Store {
             metrics,
             token_usage_granularity,
             token_usage_series,
+            device_count: 0,
         })
     }
 }
