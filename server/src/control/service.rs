@@ -14,7 +14,8 @@ use url::Url;
 
 use crate::{
     collection::{RemoteClient, RemoteQuery},
-    local_app::CursorHarness,
+    cursor::services::usage_history,
+    local_app::{agent_history, CursorHarness},
     model::{
         ContentPart, CursorRunTraceArtifact, CursorRunTraceSummary, LlmCallRequest,
         LlmCallResponseChunk, LlmCallSummary, ModelConfig, ModelConfigInput, ModelInvocation,
@@ -24,9 +25,10 @@ use crate::{
     plugin::{PluginDescriptor, PluginRegistry, PluginRuntime, PluginRuntimeStatus},
     provider::{is_valid_response_event, ModelEvent, Provider},
     store::{
-        CommitSettings, DesktopSettings, ExternalApiSettings, OverviewMode, OverviewSyncSettings,
-        OverviewSyncStatus, PortSettings, ProxySettings, ProxySettingsInput, StatisticsStorage,
-        Store, TabSettings, TokenPricingSettings,
+        CommitSettings, CursorHistoryStatus, DesktopSettings, ExternalApiSettings,
+        LocalAgentHistoryStatus, OverviewMode, OverviewSyncSettings, OverviewSyncStatus,
+        PortSettings, ProxySettings, ProxySettingsInput, StatisticsStorage, Store, TabSettings,
+        TokenPricingSettings,
     },
     Error, Result,
 };
@@ -288,22 +290,74 @@ impl ControlService {
         bucket_ms: Option<i64>,
     ) -> Result<Overview> {
         let sync = self.store.overview_sync_settings().await?;
-        if sync.mode == OverviewMode::Remote {
-            return RemoteClient::new(self.clients.clone())
-                .overview(
-                    &sync,
-                    &RemoteQuery {
+        let mut overview = match sync.mode {
+            OverviewMode::Remote => {
+                RemoteClient::new(self.clients.clone())
+                    .overview(
+                        &sync,
+                        &RemoteQuery {
+                            start_ms,
+                            end_ms,
+                            model_keys: model_hashes,
+                            bucket_ms,
+                        },
+                    )
+                    .await?
+            }
+            OverviewMode::Local => {
+                self.store
+                    .overview(start_ms, end_ms, model_hashes, bucket_ms)
+                    .await?
+            }
+        };
+        // Imported sources report their own model names, so a model filter cannot
+        // be applied to them consistently. Exclude history while filtering instead
+        // of presenting every source under one selected model.
+        let filtered_by_model = model_hashes.is_some_and(|hashes| {
+            serde_json::from_str::<Vec<String>>(hashes).is_ok_and(|models| !models.is_empty())
+        });
+        if sync.mode == OverviewMode::Local && !filtered_by_model {
+            let (start_ms, end_ms) = match (start_ms, end_ms) {
+                (Some(start_ms), Some(end_ms)) => (start_ms, end_ms),
+                _ => (0, i64::MAX),
+            };
+            let bucket_ms = match overview.token_usage_granularity {
+                crate::model::TokenUsageGranularity::Minute => 60_000,
+                crate::model::TokenUsageGranularity::Hour => 3_600_000,
+                crate::model::TokenUsageGranularity::Day => 86_400_000,
+            };
+            // The history series mirrors `overview.token_usage_series` exactly, so
+            // both can be summed bucket by bucket in the charts.
+            let (series_start_ms, bucket_count) = match overview.token_usage_series.first() {
+                Some(first) => (first.bucket_start_ms, overview.token_usage_series.len()),
+                None => (start_ms, 0),
+            };
+            if sync.include_cursor_history {
+                overview.cursor_history = Some(
+                    self.store
+                        .cursor_usage_totals(
+                            start_ms,
+                            end_ms,
+                            series_start_ms,
+                            bucket_count,
+                            bucket_ms,
+                        )
+                        .await?,
+                );
+            }
+            overview.local_agent_history = Some(
+                self.store
+                    .local_agent_usage_totals(
                         start_ms,
                         end_ms,
-                        model_keys: model_hashes,
+                        series_start_ms,
+                        bucket_count,
                         bucket_ms,
-                    },
-                )
-                .await;
+                    )
+                    .await?,
+            );
         }
-        self.store
-            .overview(start_ms, end_ms, model_hashes, bucket_ms)
-            .await
+        Ok(overview)
     }
 
     pub async fn overview_models(&self) -> Result<Vec<OverviewModelOption>> {
@@ -330,13 +384,43 @@ impl ControlService {
         &self,
         settings: OverviewSyncSettings,
     ) -> Result<OverviewSyncSettings> {
-        self.store.set_overview_sync_settings(settings).await
+        let saved = self.store.set_overview_sync_settings(settings).await?;
+        if !saved.include_cursor_history {
+            self.store.clear_cursor_usage().await?;
+        }
+        Ok(saved)
+    }
+
+    /// Imports account usage history; runs only when the user asks for it.
+    pub async fn sync_cursor_history(&self) -> Result<CursorHistoryStatus> {
+        usage_history::sync(&self.store, &self.clients).await
+    }
+
+    pub async fn cursor_history_status(&self) -> Result<CursorHistoryStatus> {
+        let included = self
+            .store
+            .overview_sync_settings()
+            .await?
+            .include_cursor_history;
+        self.store.cursor_history_status(included).await
+    }
+
+    pub async fn local_agent_history_status(&self) -> Result<LocalAgentHistoryStatus> {
+        self.store.local_agent_history_status().await
+    }
+
+    pub async fn sync_local_agent_history(&self) -> Result<LocalAgentHistoryStatus> {
+        agent_history::sync(&self.store).await
     }
 
     pub async fn overview_sync_status(&self) -> Result<OverviewSyncStatus> {
         let mut status = self.store.overview_sync_status().await?;
         let watermark = self.store.overview_sync_watermark().await?;
-        status.pending_calls = self.store.pending_collected_call_count(&watermark).await?;
+        status.pending_calls = self
+            .store
+            .pending_collected_call_count(&watermark)
+            .await?
+            .saturating_add(self.store.pending_history_call_count().await?);
         Ok(status)
     }
 

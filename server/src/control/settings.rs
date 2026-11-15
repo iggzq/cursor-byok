@@ -8,9 +8,10 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::store::{
-    CommitPromptLocale, CommitSettings, DesktopSettings, ExternalApiSettings, OverviewSyncSettings,
-    OverviewSyncStatus, PortSettings, ProxySettings, ProxySettingsInput, StatisticsStorage,
-    StatisticsStorageScope, TabSettings, TokenPricingSettings,
+    CommitPromptLocale, CommitSettings, CursorHistoryStatus, DesktopSettings, ExternalApiSettings,
+    LocalAgentHistoryStatus, OverviewSyncSettings, OverviewSyncStatus, PortSettings, ProxySettings,
+    ProxySettingsInput, StatisticsStorage, StatisticsStorageScope, TabSettings,
+    TokenPricingSettings,
 };
 
 use super::{ControlService, ObservabilitySettings};
@@ -190,6 +191,30 @@ pub async fn reset_overview_sync(
     State(service): State<ControlService>,
 ) -> Result<Json<OverviewSyncStatus>> {
     Ok(Json(service.reset_overview_sync().await?))
+}
+
+pub async fn get_cursor_history(
+    State(service): State<ControlService>,
+) -> Result<Json<CursorHistoryStatus>> {
+    Ok(Json(service.cursor_history_status().await?))
+}
+
+pub async fn sync_cursor_history(
+    State(service): State<ControlService>,
+) -> Result<Json<CursorHistoryStatus>> {
+    Ok(Json(service.sync_cursor_history().await?))
+}
+
+pub async fn get_local_agent_history(
+    State(service): State<ControlService>,
+) -> Result<Json<LocalAgentHistoryStatus>> {
+    Ok(Json(service.local_agent_history_status().await?))
+}
+
+pub async fn sync_local_agent_history(
+    State(service): State<ControlService>,
+) -> Result<Json<LocalAgentHistoryStatus>> {
+    Ok(Json(service.sync_local_agent_history().await?))
 }
 
 fn requested_commit_locale(headers: &HeaderMap) -> CommitPromptLocale {

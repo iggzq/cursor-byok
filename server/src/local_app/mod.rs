@@ -1,6 +1,8 @@
 //! Exposes the local desktop application integration.
 mod account;
+pub(crate) mod agent_history;
 mod ca;
+pub mod credential;
 mod process;
 mod proxy;
 mod settings;

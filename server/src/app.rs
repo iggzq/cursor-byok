@@ -12,7 +12,7 @@ use crate::{
         prompting::{PromptAssets, PromptCompiler},
         transport::TransportRegistry,
     },
-    local_app::CursorHarness,
+    local_app::{agent_history, CursorHarness},
     plugin::{PluginRegistry, PluginRuntime},
     provider::ProviderRouter,
     search::WebCache,
@@ -147,6 +147,7 @@ impl App {
         self.harness.set_backend_addr(address);
         tracing::info!(%address, "cursor server listening");
         self.start_overview_collection(shutdown.clone());
+        self.start_local_agent_history(shutdown.clone());
         let registry = self.registry;
         let harness = self.harness;
         let graceful = shutdown.clone();
@@ -187,6 +188,15 @@ impl App {
         let clients = self.clients.clone();
         tokio::spawn(async move {
             collection::run(push_store, clients, shutdown).await;
+        });
+    }
+
+    /// Scans local Codex and Claude logs after startup and keeps the imported
+    /// token totals current without delaying the management server.
+    fn start_local_agent_history(&self, shutdown: CancellationToken) {
+        let store = self.store.clone();
+        tokio::spawn(async move {
+            agent_history::run(store, shutdown).await;
         });
     }
 }

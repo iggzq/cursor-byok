@@ -57,6 +57,10 @@ pub struct OverviewSyncSettings {
     pub device_id: String,
     #[serde(default)]
     pub device_name: String,
+    /// Shows usage imported from the Cursor account next to the local totals.
+    /// Off by default: importing needs the signed-in Cursor credential.
+    #[serde(default)]
+    pub include_cursor_history: bool,
 }
 
 impl OverviewSyncSettings {
@@ -106,10 +110,10 @@ pub struct TokenPricingSettings {
 impl Default for TokenPricingSettings {
     fn default() -> Self {
         Self {
-            input_per_million: 5.0,
-            output_per_million: 25.0,
-            cache_read_per_million: 0.5,
-            cache_write_per_million: 6.25,
+            input_per_million: 1.0,
+            output_per_million: 4.0,
+            cache_read_per_million: 0.02,
+            cache_write_per_million: 0.0,
         }
     }
 }
@@ -656,8 +660,12 @@ impl Store {
                 .execute(&self.pool)
                 .await?;
         }
+        self.reset_history_push_state().await?;
         let watermark = OverviewWatermark::default();
-        let pending_calls = self.pending_collected_call_count(&watermark).await?;
+        let pending_calls = self
+            .pending_collected_call_count(&watermark)
+            .await?
+            .saturating_add(self.pending_history_call_count().await?);
         let status = OverviewSyncStatus {
             pending_calls,
             last_push_at_ms: self.overview_sync_status().await?.last_push_at_ms,
@@ -833,9 +841,15 @@ mod tests {
         let url = format!("sqlite://{}", directory.path().join("test.db").display());
         let store = Store::connect(&url).await.unwrap();
 
+        let defaults = store.pricing_settings().await.unwrap();
         assert_eq!(
-            store.pricing_settings().await.unwrap(),
-            TokenPricingSettings::default()
+            defaults,
+            TokenPricingSettings {
+                input_per_million: 1.0,
+                output_per_million: 4.0,
+                cache_read_per_million: 0.02,
+                cache_write_per_million: 0.0,
+            }
         );
 
         let custom = TokenPricingSettings {

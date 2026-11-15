@@ -506,3 +506,145 @@ async fn external_api_settings_stay_independent_from_collection_settings() {
     );
     assert_eq!(saved.api_key, "collector-key");
 }
+
+#[tokio::test]
+async fn cursor_history_is_opt_in_and_reported_next_to_local_totals() {
+    let (store, _directory, service) = setup().await;
+    write_call(&store, "call-1", "completed").await;
+
+    // Default: the setting is off and no history is attached or stored.
+    let saved = store.overview_sync_settings().await.unwrap();
+    assert!(!saved.include_cursor_history);
+    let overview = service.overview(None, None, None, None).await.unwrap();
+    assert_eq!(overview.cursor_history, None);
+
+    // Once enabled, imported records show up beside the local aggregate instead
+    // of replacing it, and the local calls are still counted.
+    store
+        .set_overview_sync_settings(OverviewSyncSettings {
+            include_cursor_history: true,
+            ..OverviewSyncSettings::default()
+        })
+        .await
+        .unwrap();
+    store
+        .replace_cursor_usage(&[cursor_server::model::CursorUsageRecord {
+            event_key: "cursor:one".into(),
+            occurred_at_ms: 1_000,
+            model_key: "cursor-grok-4.5".into(),
+            conversation_id: "history".into(),
+            input_tokens: 500,
+            output_tokens: 50,
+            cache_read_tokens: 4_000,
+            cache_write_tokens: 0,
+        }])
+        .await
+        .unwrap();
+
+    let overview = service.overview(None, None, None, None).await.unwrap();
+    let history = overview.cursor_history.expect("history is attached");
+    assert_eq!(history.calls, 1);
+    assert_eq!(history.input_tokens, 500);
+    assert_eq!(history.cache_read_tokens, 4_000);
+    assert_eq!(overview.metrics.llm_calls, 1);
+    assert_eq!(overview.metrics.input_tokens, 120);
+}
+
+#[tokio::test]
+async fn disabling_cursor_history_clears_the_imported_snapshot() {
+    let (store, _directory, service) = setup().await;
+    store
+        .set_overview_sync_settings(OverviewSyncSettings {
+            include_cursor_history: true,
+            ..OverviewSyncSettings::default()
+        })
+        .await
+        .unwrap();
+    store
+        .replace_cursor_usage(&[cursor_server::model::CursorUsageRecord {
+            event_key: "cursor:one".into(),
+            occurred_at_ms: 1_000,
+            model_key: "cursor-grok-4.5".into(),
+            conversation_id: "history".into(),
+            input_tokens: 500,
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+    assert_eq!(
+        service.cursor_history_status().await.unwrap().event_count,
+        1
+    );
+
+    service
+        .set_overview_sync_settings(OverviewSyncSettings::default())
+        .await
+        .unwrap();
+
+    let status = service.cursor_history_status().await.unwrap();
+    assert!(!status.included);
+    assert_eq!(status.event_count, 0);
+    assert_eq!(
+        service
+            .overview(None, None, None, None)
+            .await
+            .unwrap()
+            .cursor_history,
+        None
+    );
+}
+
+#[tokio::test]
+async fn local_agent_history_is_merged_into_every_unfiltered_overview_range() {
+    let (store, _directory, service) = setup().await;
+    store
+        .upsert_local_agent_usage(&[
+            cursor_server::model::LocalAgentUsageRecord {
+                event_key: "codex:one".into(),
+                source: "codex".into(),
+                occurred_at_ms: 1_000,
+                model_key: "codex".into(),
+                input_tokens: 100,
+                output_tokens: 20,
+                cache_read_tokens: 300,
+                cache_write_tokens: 0,
+            },
+            cursor_server::model::LocalAgentUsageRecord {
+                event_key: "claude:one".into(),
+                source: "claude_code".into(),
+                occurred_at_ms: 2_000,
+                model_key: "claude-sonnet-4-5".into(),
+                input_tokens: 10,
+                output_tokens: 2,
+                cache_read_tokens: 0,
+                cache_write_tokens: 40,
+            },
+        ])
+        .await
+        .unwrap();
+
+    let overview = service.overview(None, None, None, None).await.unwrap();
+    let history = overview
+        .local_agent_history
+        .expect("local agent history is attached");
+    assert_eq!(history.calls, 2);
+    assert_eq!(history.input_tokens, 110);
+    assert_eq!(history.cache_read_tokens, 300);
+    assert_eq!(history.cache_write_tokens, 40);
+    assert_eq!(history.sources.len(), 2);
+    assert_eq!(history.sources[0].source, "codex");
+    assert_eq!(
+        history.token_usage_series.len(),
+        overview.token_usage_series.len()
+    );
+    assert_eq!(
+        history.token_usage_series[0].bucket_start_ms,
+        overview.token_usage_series[0].bucket_start_ms
+    );
+
+    let filtered = service
+        .overview(None, None, Some("[\"deadbeef\"]"), None)
+        .await
+        .unwrap();
+    assert_eq!(filtered.local_agent_history, None);
+}

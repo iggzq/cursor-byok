@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { api, type OverviewMode, type OverviewSource, type OverviewSyncSettings, type OverviewSyncStatus } from "../../shared/api";
+import { api, type CursorHistoryStatus, type LocalAgentHistoryStatus, type OverviewMode, type OverviewSource, type OverviewSyncSettings, type OverviewSyncStatus } from "../../shared/api";
 import { appStore } from "../../shared/store/appStore";
 import { Button } from "../../shared/ui/Button";
 import { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
 import { FormField, SecretTextInput, TextInput } from "../../shared/ui/FormControls";
 import { Select } from "../../shared/ui/Select";
+import { Switch } from "../../shared/ui/Switch";
 import { TitledCard } from "../../shared/ui/TitledCard";
 import { useMessage } from "../../shared/ui/message";
 import styles from "./OverviewSyncSettingsCard.module.scss";
@@ -15,6 +16,7 @@ const DEFAULT_SYNC: OverviewSyncSettings = {
   api_key: "",
   device_id: "",
   device_name: "",
+  include_cursor_history: false,
 };
 
 function formatTime(value: number | null) {
@@ -34,19 +36,27 @@ export function OverviewSyncSettingsCard() {
   const [draft, setDraft] = useState<OverviewSyncSettings>(DEFAULT_SYNC);
   const [status, setStatus] = useState<OverviewSyncStatus | null>(null);
   const [sources, setSources] = useState<OverviewSource[]>([]);
+  const [history, setHistory] = useState<CursorHistoryStatus | null>(null);
+  const [localAgentHistory, setLocalAgentHistory] = useState<LocalAgentHistoryStatus | null>(null);
   const [saving, setSaving] = useState(false);
   const [flushing, setFlushing] = useState(false);
   const [testing, setTesting] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importingLocal, setImportingLocal] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
 
   const loadStatus = async () => {
-    const [nextStatus, nextSources] = await Promise.all([
+    const [nextStatus, nextSources, nextHistory, nextLocalAgentHistory] = await Promise.all([
       api.overviewSyncStatus(),
       api.overviewSources().catch(() => [] as OverviewSource[]),
+      api.cursorHistoryStatus(),
+      api.localAgentHistoryStatus(),
     ]);
     setStatus(nextStatus);
     setSources(nextSources);
+    setHistory(nextHistory);
+    setLocalAgentHistory(nextLocalAgentHistory);
   };
 
   useEffect(() => {
@@ -64,7 +74,9 @@ export function OverviewSyncSettingsCard() {
     || saved.center_url !== draft.center_url
     || saved.api_key !== draft.api_key
     || saved.device_name !== draft.device_name
+    || saved.include_cursor_history !== draft.include_cursor_history
   );
+  const historyEnabled = saved?.include_cursor_history === true;
 
   const save = async () => {
     try {
@@ -85,6 +97,38 @@ export function OverviewSyncSettingsCard() {
       setSaving(false);
     }
   };
+
+  const importHistory = async () => {
+    try {
+      setImporting(true);
+      setHistory(await api.syncCursorHistory());
+      await appStore.refresh();
+      await loadStatus();
+      message(t("Cursor 历史用量已导入"));
+    } catch (cause) {
+      message(cause instanceof Error ? cause.message : String(cause));
+      await loadStatus().catch(() => undefined);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const importLocalAgentHistory = async () => {
+    try {
+      setImportingLocal(true);
+      setLocalAgentHistory(await api.syncLocalAgentHistory());
+      await appStore.refresh();
+      await loadStatus();
+      message(t("本地工具 Token 历史已重新扫描"));
+    } catch (cause) {
+      message(cause instanceof Error ? cause.message : String(cause));
+      await loadStatus().catch(() => undefined);
+    } finally {
+      setImportingLocal(false);
+    }
+  };
+
+  const localSourceCalls = (source: string) => localAgentHistory?.sources.find((item) => item.source === source)?.calls ?? 0;
 
   const flush = async () => {
     try {
@@ -153,6 +197,64 @@ export function OverviewSyncSettingsCard() {
         </div>
       </div>
 
+      <div className={styles.row}>
+        <div className={styles.description}>
+          <strong>{t("包含 Cursor 历史")}</strong>
+          <small>{t("把 Cursor 账号的用量（含 CmdK / Tab 和开始用 Cursor BYOK 之前的历史）也统计到概览里。数据来自本机已登录的 Cursor 账号，仅在手动导入时读取。")}</small>
+        </div>
+        <Switch
+          checked={draft.include_cursor_history}
+          label={t("包含 Cursor 历史")}
+          disabled={saving}
+          onChange={(checked) => setDraft((current) => ({ ...current, include_cursor_history: checked }))}
+        />
+      </div>
+
+      {remote && <div className={styles.description}>
+        <small>{t("远程汇总模式下 Cursor 历史与本地 AI 工具历史也会推送到汇总中心，并按稳定事件 ID 去重。")}</small>
+      </div>}
+
+      {historyEnabled && <div className={styles.status}>
+        <div>
+          <strong>{t("Cursor 历史用量")}</strong>
+          <small>
+            {history?.last_error
+              ? history.last_error
+              : t("已导入 {count} 条记录 · 最近导入 {time}", {
+                count: history?.event_count ?? 0,
+                time: formatTime(history?.last_sync_at_ms ?? null),
+              })}
+          </small>
+        </div>
+        <div className={styles.statusActions}>
+          <Button size="small" disabled={importing || saving} onClick={() => void importHistory()}>
+            {importing ? t("导入中…") : t("立即导入")}
+          </Button>
+        </div>
+      </div>}
+
+      <div className={styles.status}>
+        <div>
+          <strong>{t("本地 AI 工具历史")}</strong>
+          <small>{t("自动读取本机 Codex、Claude Code 与 Claude CLI 的会话日志，包含历史记录；仅提取 Token 用量，不保存对话正文。")}</small>
+          <small>
+            {localAgentHistory?.last_error
+              ? localAgentHistory.last_error
+              : t("Codex {codex} 条 · Claude Code {claudeCode} 条 · Claude CLI {claudeCli} 条 · 最近扫描 {time}", {
+                codex: localSourceCalls("codex"),
+                claudeCode: localSourceCalls("claude_code"),
+                claudeCli: localSourceCalls("claude_cli"),
+                time: formatTime(localAgentHistory?.last_sync_at_ms ?? null),
+              })}
+          </small>
+        </div>
+        <div className={styles.statusActions}>
+          <Button size="small" disabled={importingLocal} onClick={() => void importLocalAgentHistory()}>
+            {importingLocal ? t("扫描中…") : t("重新扫描")}
+          </Button>
+        </div>
+      </div>
+
       {remote && <>
         <FormField label={t("汇总中心地址")} hint={t("中心服务根地址，例如 http://10.0.0.5:4399，末尾不需要路径。")}>
           <TextInput
@@ -216,14 +318,6 @@ export function OverviewSyncSettingsCard() {
           </div>)}
         </div>}
       </>}
-
-      <div className={styles.divider} />
-      <div className={styles.description}>
-        <strong>{t("部署汇总中心")}</strong>
-        <small>{t("汇总中心是独立服务，部署在中心服务器上，与桌面应用互不影响：")}</small>
-        <code className={styles.command}>CURSOR_OVERVIEW_COLLECTOR_API_KEY=&lt;密钥&gt; cursor-overview-collector</code>
-        <small>{t("默认监听 0.0.0.0:4399，可用 CURSOR_OVERVIEW_COLLECTOR_ADDR 与 CURSOR_DATABASE_URL 调整。桌面端永远只作为数据来源，不会开放外部端口。")}</small>
-      </div>
     </div>
     <ConfirmDialog
       open={confirmReset}

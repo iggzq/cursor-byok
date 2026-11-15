@@ -3,10 +3,10 @@ import { api, type CursorHarnessStatus, type LlmCall, type Model, type ModelInpu
 import { applyTheme, isThemeId, type ThemeId } from "../theme/theme";
 
 export const DEFAULT_TOKEN_PRICING: TokenPricingSettings = {
-  input_per_million: 5.0,
-  output_per_million: 25.0,
-  cache_read_per_million: 0.5,
-  cache_write_per_million: 6.25,
+  input_per_million: 1.0,
+  output_per_million: 4.0,
+  cache_read_per_million: 0.02,
+  cache_write_per_million: 0.0,
 };
 
 export const DEFAULT_OVERVIEW_SYNC: OverviewSyncSettings = {
@@ -15,6 +15,7 @@ export const DEFAULT_OVERVIEW_SYNC: OverviewSyncSettings = {
   api_key: "",
   device_id: "",
   device_name: "",
+  include_cursor_history: false,
 };
 
 export type AppSnapshot = {
@@ -57,6 +58,8 @@ let snapshot: AppSnapshot = {
     token_usage_granularity: "day",
     token_usage_series: [],
     device_count: 0,
+    cursor_history: null,
+    local_agent_history: null,
   },
   overviewSync: DEFAULT_OVERVIEW_SYNC,
   detailed: false,

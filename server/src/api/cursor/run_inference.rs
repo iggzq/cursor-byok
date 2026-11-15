@@ -29,6 +29,11 @@ use crate::{
     Error, Result,
 };
 
+#[cfg(not(test))]
+const HEARTBEAT_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
+#[cfg(test)]
+const HEARTBEAT_INTERVAL: std::time::Duration = std::time::Duration::from_millis(20);
+
 #[derive(Clone, Default)]
 pub struct RunInferenceState {
     inner: Arc<Mutex<HashMap<String, InferenceRun>>>,
@@ -201,11 +206,15 @@ async fn run_request(
     if let Some(parent) = parent {
         handle.set_parent(parent)?;
     }
-    if state
-        .begin_run(request_id, request.requested_model.clone())
-        .await
-    {
-        emit_run_ready(&handle, request.requested_model.as_ref());
+    let requested_model = resolve_requested_model(
+        registry.store(),
+        request.requested_model.as_ref(),
+        (!request.conversation_id.is_empty()).then_some(request.conversation_id.as_str()),
+        None,
+    )
+    .await?;
+    if state.begin_run(request_id, requested_model.clone()).await {
+        emit_run_ready(&handle, requested_model.as_ref());
     }
     Ok(ai::BidiAppendResponse {})
 }
@@ -270,7 +279,8 @@ async fn invoke_model(
         ));
     }
     let fallback_model = state.model(request_id).await;
-    let invocation = build_invocation(request_id, &request, fallback_model.as_ref())?;
+    let invocation =
+        build_invocation(registry, request_id, &request, fallback_model.as_ref()).await?;
     let handle = registry.get_or_create_for_append(request_id, false).await?;
     let token = CancellationToken::new();
     state
@@ -285,7 +295,8 @@ async fn invoke_model(
     Ok(ai::BidiAppendResponse {})
 }
 
-fn build_invocation(
+async fn build_invocation(
+    registry: &TransportRegistry,
     request_id: &str,
     request: &ai::RunInferenceInvokeModel,
     fallback_model: Option<&ai::InferenceRequestedModel>,
@@ -297,8 +308,15 @@ fn build_invocation(
         decompressed = decompress_stream_request(request)?;
         &decompressed
     };
-    let model = model_spec(
+    let requested_model = resolve_requested_model(
+        registry.store(),
         stream_request.requested_model.as_ref(),
+        stream_request.conversation_id.as_deref(),
+        fallback_model,
+    )
+    .await?;
+    let model = model_spec(
+        requested_model.as_ref(),
         stream_request.model_id.as_deref(),
         fallback_model,
     )?;
@@ -323,6 +341,39 @@ fn build_invocation(
             history,
         },
     })
+}
+
+async fn resolve_requested_model(
+    store: &crate::store::Store,
+    requested: Option<&ai::InferenceRequestedModel>,
+    conversation_id: Option<&str>,
+    fallback: Option<&ai::InferenceRequestedModel>,
+) -> Result<Option<ai::InferenceRequestedModel>> {
+    if let Some(requested) = requested.filter(|model| model.model_id != "default") {
+        if let Some(configured) = store
+            .resolve_model(&requested.model_id, conversation_id)
+            .await?
+        {
+            let mut model = requested.clone();
+            model.model_id = configured.model_hash;
+            return Ok(Some(model));
+        }
+        return Ok(Some(requested.clone()));
+    }
+
+    if let Some(fallback) = fallback {
+        let mut model = requested.cloned().unwrap_or_else(|| fallback.clone());
+        model.model_id = fallback.model_id.clone();
+        return Ok(Some(model));
+    }
+
+    let mut model = requested.cloned().unwrap_or_default();
+    model.model_id = store
+        .resolve_model("default", conversation_id)
+        .await?
+        .map(|model| model.model_hash)
+        .unwrap_or_else(|| "default".into());
+    Ok(Some(model.clone()))
 }
 
 fn decompress_stream_request(
@@ -676,6 +727,9 @@ async fn run_invocation(
         let provider = registry.conversations().dependencies().provider.clone();
         let stream = provider.stream(invocation, cancellation.clone());
         futures_util::pin_mut!(stream);
+        let mut heartbeat = tokio::time::interval(HEARTBEAT_INTERVAL);
+        heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        heartbeat.tick().await;
         emit_server(
             &handle,
             &invocation_response(
@@ -689,16 +743,27 @@ async fn run_invocation(
                 },
             ),
         );
-        while let Some(event) = stream.next().await {
-            match event {
-                Ok(event) => {
-                    for message in response_messages(&invocation_id, &event, &mut tool_state) {
-                        emit_server(&handle, &message);
-                    }
+        loop {
+            tokio::select! {
+                _ = heartbeat.tick() => {
+                    emit_server(&handle, &heartbeat_message());
                 }
-                Err(event_error) => {
-                    error = Some(event_error.to_string());
-                    break;
+                _ = cancellation.cancelled() => break,
+                event = stream.next() => {
+                    let Some(event) = event else {
+                        break;
+                    };
+                    match event {
+                        Ok(event) => {
+                            for message in response_messages(&invocation_id, &event, &mut tool_state) {
+                                emit_server(&handle, &message);
+                            }
+                        }
+                        Err(event_error) => {
+                            error = Some(event_error.to_string());
+                            break;
+                        }
+                    }
                 }
             }
         }
@@ -719,6 +784,16 @@ async fn run_invocation(
     state
         .remove_invocation(handle.request_id(), &invocation_id)
         .await;
+}
+
+fn heartbeat_message() -> ai::RunInferenceServerMessage {
+    ai::RunInferenceServerMessage {
+        message: Some(ai::run_inference_server_message::Message::Heartbeat(
+            ai::RunInferenceHeartbeat {
+                accepts_speculative_invocations: false,
+            },
+        )),
+    }
 }
 
 #[derive(Default)]
@@ -1025,7 +1100,184 @@ impl Drop for StreamGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        cursor::prompting::{PromptAssets, PromptCompiler},
+        model::{ModelConfigInput, ModelType, OPENAI_CHAT_ENDPOINT},
+        provider::{Provider, ProviderStream},
+        store::Store,
+    };
     use std::io::Write;
+
+    struct PendingProvider;
+
+    impl Provider for PendingProvider {
+        fn stream(
+            &self,
+            _invocation: ModelInvocation,
+            _cancellation: CancellationToken,
+        ) -> ProviderStream {
+            Box::pin(futures_util::stream::pending())
+        }
+    }
+
+    fn model_input() -> ModelConfigInput {
+        ModelConfigInput {
+            sort_order: 0,
+            display_name: "Test Model".into(),
+            group_name: None,
+            model_type: ModelType::OpenAi,
+            base_url: "https://example.com/v1/chat/completions".into(),
+            use_full_url: true,
+            api_key: "test-key".into(),
+            tooltip_data: "Test Model".into(),
+            model_id: "test-model".into(),
+            reasoning_effort: None,
+            openai_endpoint: OPENAI_CHAT_ENDPOINT.into(),
+            openai_extra_params_enabled: false,
+            openai_extra_params: serde_json::json!({}),
+            custom_headers_enabled: false,
+            custom_headers: serde_json::json!({}),
+            anthropic_extra_params_enabled: false,
+            anthropic_extra_params: serde_json::json!({}),
+            context_window_tokens: None,
+            max_completion_tokens: None,
+            anthropic_max_tokens: None,
+            anthropic_thinking_effort: None,
+            thinking_budget_tokens: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn resolves_run_inference_model_alias_to_the_configured_hash() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Store::connect(&format!(
+            "sqlite://{}",
+            directory.path().join("test.db").display()
+        ))
+        .await
+        .unwrap();
+        let configured = store.create_model(&model_input()).await.unwrap();
+        let requested = ai::InferenceRequestedModel {
+            model_id: "test-model".into(),
+            ..Default::default()
+        };
+
+        let resolved =
+            resolve_requested_model(&store, Some(&requested), Some("conversation"), None)
+                .await
+                .unwrap()
+                .expect("resolved model");
+
+        assert_eq!(resolved.model_id, configured.model_hash);
+    }
+
+    #[tokio::test]
+    async fn default_run_inference_model_inherits_the_plugin_fallback() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Store::connect(&format!(
+            "sqlite://{}",
+            directory.path().join("test.db").display()
+        ))
+        .await
+        .unwrap();
+        store.create_model(&model_input()).await.unwrap();
+        let requested = ai::InferenceRequestedModel {
+            model_id: "default".into(),
+            ..Default::default()
+        };
+        let fallback = ai::InferenceRequestedModel {
+            model_id: "plugin:example/provider/model".into(),
+            ..Default::default()
+        };
+
+        let resolved = resolve_requested_model(
+            &store,
+            Some(&requested),
+            Some("conversation"),
+            Some(&fallback),
+        )
+        .await
+        .unwrap()
+        .expect("resolved model");
+
+        assert_eq!(resolved.model_id, fallback.model_id);
+    }
+
+    #[tokio::test]
+    async fn emits_heartbeats_while_the_provider_is_waiting() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Store::connect(&format!(
+            "sqlite://{}",
+            directory.path().join("test.db").display()
+        ))
+        .await
+        .unwrap();
+        let assets = PromptAssets::load(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("prompt/cursor")
+                .as_path(),
+        )
+        .unwrap();
+        let registry = TransportRegistry::new(
+            store,
+            Arc::new(PendingProvider),
+            PromptCompiler::new(assets),
+        );
+        let handle = registry.get_or_create("heartbeat-run").await.unwrap();
+        let mut output = handle.subscribe();
+        let cancellation = CancellationToken::new();
+        let invocation = ModelInvocation {
+            call_id: "call".into(),
+            run_id: "run".into(),
+            conversation_id: "conversation".into(),
+            provider_call_index: 0,
+            request: ModelRequest {
+                prompt: PromptSpec {
+                    instructions: String::new(),
+                    tools: Vec::new(),
+                },
+                model: ModelSpec::new("test-model"),
+                history: Vec::new(),
+            },
+        };
+        let task = tokio::spawn(run_invocation(
+            registry.clone(),
+            handle,
+            RunInferenceState::default(),
+            "invocation".into(),
+            invocation,
+            cancellation.clone(),
+        ));
+
+        let invocation_id = tokio::time::timeout(std::time::Duration::from_secs(1), output.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let (_, payload) = connect::decode_frames(&invocation_id)
+            .unwrap()
+            .pop()
+            .unwrap();
+        let message = ai::RunInferenceServerMessage::decode(payload).unwrap();
+        assert!(matches!(
+            message.message,
+            Some(ai::run_inference_server_message::Message::InvocationResponse(_))
+        ));
+
+        let heartbeat = tokio::time::timeout(std::time::Duration::from_secs(1), output.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let (_, payload) = connect::decode_frames(&heartbeat).unwrap().pop().unwrap();
+        let message = ai::RunInferenceServerMessage::decode(payload).unwrap();
+        assert!(matches!(
+            message.message,
+            Some(ai::run_inference_server_message::Message::Heartbeat(_))
+        ));
+
+        cancellation.cancel();
+        task.await.unwrap();
+        registry.shutdown().await;
+    }
 
     fn compressed_gzip(request: &ai::InferenceStreamRequest) -> ai::RunInferenceInvokeModel {
         let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());

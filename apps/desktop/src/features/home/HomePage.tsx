@@ -20,7 +20,12 @@ const DAY_MS = 24 * 60 * 60_000;
 
 function contributionCalendarData(overview: Overview, endMs: number) {
   const tokensByDate = new Map<string, number>();
-  for (const bucket of overview.token_usage_series) {
+  const series = [
+    ...overview.token_usage_series,
+    ...(overview.cursor_history?.token_usage_series ?? []),
+    ...(overview.local_agent_history?.token_usage_series ?? []),
+  ];
+  for (const bucket of series) {
     const date = new Date(bucket.bucket_start_ms).toISOString().slice(0, 10);
     const tokens = bucket.input_tokens + bucket.cache_read_tokens + bucket.cache_write_tokens + bucket.output_tokens;
     tokensByDate.set(date, (tokensByDate.get(date) ?? 0) + tokens);
@@ -32,6 +37,29 @@ function contributionCalendarData(overview: Overview, endMs: number) {
     const date = new Date(firstDayMs + offset * DAY_MS).toISOString().slice(0, 10);
     return { date, tokens: tokensByDate.get(date) ?? 0 };
   });
+}
+
+function mergeTokenUsageSeries(overview: Overview) {
+  const buckets = new Map<number, { inputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; outputTokens: number }>();
+  const add = (bucket: Overview["token_usage_series"][number]) => {
+    const current = buckets.get(bucket.bucket_start_ms) ?? {
+      inputTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      outputTokens: 0,
+    };
+    current.inputTokens += bucket.input_tokens;
+    current.cacheReadTokens += bucket.cache_read_tokens;
+    current.cacheWriteTokens += bucket.cache_write_tokens;
+    current.outputTokens += bucket.output_tokens;
+    buckets.set(bucket.bucket_start_ms, current);
+  };
+  overview.token_usage_series.forEach(add);
+  overview.cursor_history?.token_usage_series.forEach(add);
+  overview.local_agent_history?.token_usage_series.forEach(add);
+  return [...buckets.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([bucketStartMs, value]) => ({ bucketStartMs, ...value }));
 }
 
 function presetRange(preset: Exclude<OverviewRangePreset, "custom">, now = new Date()): TimeRange {
@@ -105,13 +133,7 @@ export function HomePage() {
   }, [preset, customRange, overview, refreshVersion, appliedModels, remoteMode]);
 
   const filteredOverview = rangeOverview ?? overview;
-  const dailyTokenUsage = filteredOverview.token_usage_series.map((bucket) => ({
-    bucketStartMs: bucket.bucket_start_ms,
-    inputTokens: bucket.input_tokens,
-    cacheReadTokens: bucket.cache_read_tokens,
-    cacheWriteTokens: bucket.cache_write_tokens,
-    outputTokens: bucket.output_tokens,
-  }));
+  const dailyTokenUsage = mergeTokenUsageSeries(filteredOverview);
   const contribution = contributionCalendarData(filteredOverview, selectedRange?.endMs ?? Date.now());
   const metrics = {
     llmCalls: filteredOverview.metrics.llm_calls,
@@ -123,6 +145,27 @@ export function HomePage() {
     cacheWriteTokens: filteredOverview.metrics.cache_write_tokens,
     deviceCount: filteredOverview.device_count ?? 0,
     remote: remoteMode,
+    cursorHistory: filteredOverview.cursor_history
+      ? {
+        calls: filteredOverview.cursor_history.calls,
+        inputTokens: filteredOverview.cursor_history.input_tokens,
+        cacheReadTokens: filteredOverview.cursor_history.cache_read_tokens,
+        cacheWriteTokens: filteredOverview.cursor_history.cache_write_tokens,
+        outputTokens: filteredOverview.cursor_history.output_tokens,
+        lastSyncAtMs: filteredOverview.cursor_history.last_sync_at_ms,
+      }
+      : null,
+    localAgentHistory: filteredOverview.local_agent_history
+      ? {
+        calls: filteredOverview.local_agent_history.calls,
+        inputTokens: filteredOverview.local_agent_history.input_tokens,
+        cacheReadTokens: filteredOverview.local_agent_history.cache_read_tokens,
+        cacheWriteTokens: filteredOverview.local_agent_history.cache_write_tokens,
+        outputTokens: filteredOverview.local_agent_history.output_tokens,
+        lastSyncAtMs: filteredOverview.local_agent_history.last_sync_at_ms,
+        sources: filteredOverview.local_agent_history.sources,
+      }
+      : null,
   };
   const openCustom = (open: boolean) => {
     if (open && !customStart && !customEnd) {

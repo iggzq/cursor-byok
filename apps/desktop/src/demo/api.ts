@@ -104,8 +104,20 @@ let overviewSyncSettings: OverviewSyncSettings = {
   api_key: "",
   device_id: "demo-device",
   device_name: "Demo Machine",
+  include_cursor_history: false,
 };
 let overviewSyncStatus: OverviewSyncStatus = { pending_calls: 0, last_push_at_ms: null, last_error: null };
+let cursorHistoryStatus = { included: false, event_count: 0, last_sync_at_ms: null as number | null, last_error: null as string | null };
+let localAgentHistoryStatus = {
+  event_count: 1_183,
+  last_sync_at_ms: FIXED_NOW,
+  last_error: null as string | null,
+  sources: [
+    { source: "codex", calls: 1_172, input_tokens: 7_584_999, output_tokens: 856_833, cache_read_tokens: 266_949_120, cache_write_tokens: 0 },
+    { source: "claude_code", calls: 4, input_tokens: 32_564, output_tokens: 36, cache_read_tokens: 128, cache_write_tokens: 21_235 },
+    { source: "claude_cli", calls: 7, input_tokens: 202, output_tokens: 7, cache_read_tokens: 0, cache_write_tokens: 0 },
+  ],
+};
 let storage: StatisticsStorage = { call_count: calls.length, trace_count: calls.length };
 
 export function installDemoApi() {
@@ -188,6 +200,7 @@ export function installDemoApi() {
     if (path === "/settings/overview-sync" && method === "GET") return json(overviewSyncSettings);
     if (path === "/settings/overview-sync") {
       overviewSyncSettings = { ...overviewSyncSettings, ...(body as Partial<OverviewSyncSettings>) };
+      cursorHistoryStatus = { ...cursorHistoryStatus, included: overviewSyncSettings.include_cursor_history };
       return json(overviewSyncSettings);
     }
     if (path === "/settings/overview-sync/status") return json(overviewSyncStatus);
@@ -198,6 +211,16 @@ export function installDemoApi() {
     if (path === "/settings/overview-sync/reset") {
       overviewSyncStatus = { ...overviewSyncStatus, pending_calls: calls.length, last_error: null };
       return json(overviewSyncStatus);
+    }
+    if (path === "/settings/cursor-history") return json(cursorHistoryStatus);
+    if (path === "/settings/cursor-history/sync") {
+      cursorHistoryStatus = { ...cursorHistoryStatus, event_count: 1_284, last_sync_at_ms: FIXED_NOW };
+      return json(cursorHistoryStatus);
+    }
+    if (path === "/settings/local-agent-history") return json(localAgentHistoryStatus);
+    if (path === "/settings/local-agent-history/sync") {
+      localAgentHistoryStatus = { ...localAgentHistoryStatus, last_sync_at_ms: FIXED_NOW };
+      return json(localAgentHistoryStatus);
     }
     if (path === "/desktop/open-external-url") {
       const target = (body as { url?: string } | null)?.url;
@@ -282,6 +305,27 @@ function createOverview(params: URLSearchParams): Overview {
     token_usage_granularity: granularity,
     token_usage_series: series,
     device_count: 0,
+    cursor_history: overviewSyncSettings.include_cursor_history
+      ? {
+        calls: 12_034,
+        input_tokens: 6_053_356,
+        output_tokens: 1_828_385,
+        cache_read_tokens: 412_600_099,
+        cache_write_tokens: 10_113_134,
+        last_sync_at_ms: cursorHistoryStatus.last_sync_at_ms,
+        token_usage_series: [],
+      }
+      : null,
+    local_agent_history: {
+      calls: 1_183,
+      input_tokens: 7_617_765,
+      output_tokens: 856_876,
+      cache_read_tokens: 266_949_248,
+      cache_write_tokens: 21_235,
+      last_sync_at_ms: localAgentHistoryStatus.last_sync_at_ms,
+      sources: localAgentHistoryStatus.sources,
+      token_usage_series: [],
+    },
   };
 }
 

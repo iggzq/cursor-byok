@@ -71,12 +71,6 @@
   }
 }
 
-.command {
-  overflow-wrap: anywhere;
-  color: var(--vscode-descriptionForeground);
-  font-size: type.$font-size-xs;
-}
-
 .resetRow {
   display: flex;
   align-items: center;
@@ -111,11 +105,6 @@
 .error {
   color: var(--vscode-errorForeground);
   overflow-wrap: anywhere;
-}
-
-.divider {
-  height: 1px;
-  background: var(--vscode-widget-border);
 }
 
 @media (max-width: 680px) {

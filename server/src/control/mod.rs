@@ -234,6 +234,22 @@ pub fn api_router(service: ControlService) -> Router {
             post(settings::reset_overview_sync),
         )
         .route(
+            "/__byok-api__/api/settings/cursor-history",
+            get(settings::get_cursor_history),
+        )
+        .route(
+            "/__byok-api__/api/settings/cursor-history/sync",
+            post(settings::sync_cursor_history),
+        )
+        .route(
+            "/__byok-api__/api/settings/local-agent-history",
+            get(settings::get_local_agent_history),
+        )
+        .route(
+            "/__byok-api__/api/settings/local-agent-history/sync",
+            post(settings::sync_local_agent_history),
+        )
+        .route(
             "/__byok-api__/api/harness/cursor/status",
             get(harness::status),
         )

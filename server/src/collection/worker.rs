@@ -14,6 +14,7 @@ use crate::{
 
 const PUSH_INTERVAL: Duration = Duration::from_secs(60);
 const PUSH_TIMEOUT: Duration = Duration::from_secs(20);
+const PUSH_BATCH_LIMIT: i64 = 500;
 /// Short pause between batches while draining a backlog, so a large first sync
 /// does not monopolise the network or the SQLite writer.
 const DRAIN_PAUSE: Duration = Duration::from_millis(150);
@@ -98,6 +99,30 @@ async fn push_round(store: &Store, clients: &NetworkClients) -> Result<bool> {
         refresh_status(store, None, false).await?;
         return Ok(false);
     }
+    let history = store
+        .pending_history_collected_calls(PUSH_BATCH_LIMIT)
+        .await?;
+    if !history.is_empty() {
+        let batch = OverviewIngestBatch {
+            source_id: settings.device_id.clone(),
+            source_name: settings.device_name.clone(),
+            calls: history.iter().map(|pending| pending.call.clone()).collect(),
+        };
+        match post_batch(clients, &settings, &batch).await {
+            Ok(()) => {
+                store.mark_history_calls_pushed(&history).await?;
+                refresh_status(store, None, true).await?;
+                let watermark = store.overview_sync_watermark().await?;
+                let normal_pending = store.pending_collected_call_count(&watermark).await?;
+                return Ok(history.len() == PUSH_BATCH_LIMIT as usize || normal_pending > 0);
+            }
+            Err(error) => {
+                refresh_status(store, Some(error.to_string()), false).await?;
+                return Err(error);
+            }
+        }
+    }
+
     let watermark = store.overview_sync_watermark().await?;
     let calls = store.pending_collected_calls(&watermark).await?;
     if calls.is_empty() {
@@ -156,7 +181,10 @@ async fn post_batch(
 async fn refresh_status(store: &Store, error: Option<String>, pushed: bool) -> Result<()> {
     let previous = store.overview_sync_status().await?;
     let watermark = store.overview_sync_watermark().await?;
-    let pending_calls = store.pending_collected_call_count(&watermark).await?;
+    let pending_calls = store
+        .pending_collected_call_count(&watermark)
+        .await?
+        .saturating_add(store.pending_history_call_count().await?);
     let last_push_at_ms = if pushed {
         Some(now_ms())
     } else {

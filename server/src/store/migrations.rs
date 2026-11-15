@@ -456,10 +456,52 @@ mod tests {
             .unwrap();
 
             assert_eq!(checksum_after, checksum_before);
-            assert_eq!(versions, vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+            assert_eq!(versions, vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
             assert_eq!(checkpoint_table_exists, 1);
             assert_eq!(argument_error_column_exists, 1);
         }
+    }
+
+    #[tokio::test]
+    async fn imported_history_upgrade_preserves_rows_and_adds_push_state() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        let historical = migrator_with_line_endings(MigrationLineEndings::Lf);
+        let through_twelve = Migrator {
+            migrations: Cow::Owned(historical.iter().take(12).cloned().collect()),
+            ..Migrator::DEFAULT
+        };
+        through_twelve.run(&pool).await.unwrap();
+        sqlx::query(
+            "INSERT INTO cursor_usage_events(
+                created_at_ms, model_key, display_name, conversation_id,
+                input_tokens, output_tokens, cache_read_tokens, cache_write_tokens
+             ) VALUES (1000, 'model', 'Model', 'conversation', 10, 2, 3, 4)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        run(&pool, Path::new("history-upgrade.db")).await.unwrap();
+
+        let (event_key, input_tokens, pushed_at_ms): (String, i64, Option<i64>) =
+            sqlx::query_as("SELECT event_key, input_tokens, pushed_at_ms FROM cursor_usage_events")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert!(event_key.starts_with("cursor-legacy:"));
+        assert_eq!(input_tokens, 10);
+        assert_eq!(pushed_at_ms, None);
+        let local_push_column: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM pragma_table_info('local_agent_usage_events') WHERE name = 'pushed_at_ms'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(local_push_column, 1);
     }
 
     #[test]

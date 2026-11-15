@@ -11,6 +11,19 @@ use super::{now_ms, OverviewWatermark, Store};
 
 const PUSH_BATCH_LIMIT: i64 = 500;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum HistoryPushKind {
+    Cursor,
+    LocalAgent,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct PendingHistoryCall {
+    pub kind: HistoryPushKind,
+    pub event_key: String,
+    pub call: CollectedCall,
+}
+
 impl Store {
     /// Calls finished after `watermark` that still need to be pushed.
     pub async fn pending_collected_calls(
@@ -69,6 +82,133 @@ impl Store {
         .fetch_one(&self.pool)
         .await
         .map_err(Into::into)
+    }
+
+    pub(crate) async fn pending_history_collected_calls(
+        &self,
+        limit: i64,
+    ) -> Result<Vec<PendingHistoryCall>> {
+        let rows = sqlx::query(
+            "SELECT 'cursor' AS history_kind, event_key, created_at_ms, model_key,
+                    '' AS source, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens
+             FROM cursor_usage_events
+             WHERE pushed_at_ms IS NULL
+             UNION ALL
+             SELECT 'local_agent' AS history_kind, event_key, created_at_ms, model_key,
+                    source, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens
+             FROM local_agent_usage_events
+             WHERE pushed_at_ms IS NULL
+             ORDER BY created_at_ms, event_key
+             LIMIT ?",
+        )
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.into_iter()
+            .map(|row| {
+                let kind = match row.try_get::<String, _>("history_kind")?.as_str() {
+                    "cursor" => HistoryPushKind::Cursor,
+                    "local_agent" => HistoryPushKind::LocalAgent,
+                    value => {
+                        return Err(crate::Error::Store(format!(
+                            "unknown imported history kind: {value}"
+                        )))
+                    }
+                };
+                let event_key: String = row.try_get("event_key")?;
+                let created_at_ms: i64 = row.try_get("created_at_ms")?;
+                let raw_model: String = row.try_get("model_key")?;
+                let source: String = row.try_get("source")?;
+                let (request_type, model_key, display_name) = match kind {
+                    HistoryPushKind::Cursor => (
+                        "cursor-history",
+                        format!("cursor-history:{raw_model}"),
+                        raw_model,
+                    ),
+                    HistoryPushKind::LocalAgent => {
+                        let label = match source.as_str() {
+                            "codex" => "Codex",
+                            "claude_code" => "Claude Code",
+                            "claude_cli" => "Claude CLI",
+                            value => value,
+                        };
+                        (
+                            "local-agent-history",
+                            format!("local-agent-history:{source}:{raw_model}"),
+                            format!("{label}: {raw_model}"),
+                        )
+                    }
+                };
+                Ok(PendingHistoryCall {
+                    kind,
+                    event_key: event_key.clone(),
+                    call: CollectedCall {
+                        call_id: format!("{request_type}:{event_key}"),
+                        created_at_ms,
+                        finished_at_ms: created_at_ms,
+                        request_type: request_type.into(),
+                        model_key,
+                        display_name,
+                        status: "completed".into(),
+                        input_tokens: row.try_get("input_tokens")?,
+                        output_tokens: row.try_get("output_tokens")?,
+                        cache_read_tokens: row.try_get("cache_read_tokens")?,
+                        cache_write_tokens: row.try_get("cache_write_tokens")?,
+                    },
+                })
+            })
+            .collect()
+    }
+
+    pub(crate) async fn pending_history_call_count(&self) -> Result<i64> {
+        sqlx::query_scalar(
+            "SELECT
+                (SELECT COUNT(*) FROM cursor_usage_events WHERE pushed_at_ms IS NULL) +
+                (SELECT COUNT(*) FROM local_agent_usage_events WHERE pushed_at_ms IS NULL)",
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    pub(crate) async fn mark_history_calls_pushed(
+        &self,
+        calls: &[PendingHistoryCall],
+    ) -> Result<()> {
+        if calls.is_empty() {
+            return Ok(());
+        }
+        let pushed_at_ms = now_ms();
+        let _write = self.writes.lock().await;
+        let mut transaction = self.pool.begin_with("BEGIN IMMEDIATE").await?;
+        for pending in calls {
+            let table = match pending.kind {
+                HistoryPushKind::Cursor => "cursor_usage_events",
+                HistoryPushKind::LocalAgent => "local_agent_usage_events",
+            };
+            sqlx::query(&format!(
+                "UPDATE {table} SET pushed_at_ms = ? WHERE event_key = ?"
+            ))
+            .bind(pushed_at_ms)
+            .bind(&pending.event_key)
+            .execute(&mut *transaction)
+            .await?;
+        }
+        transaction.commit().await?;
+        Ok(())
+    }
+
+    pub(crate) async fn reset_history_push_state(&self) -> Result<()> {
+        let _write = self.writes.lock().await;
+        let mut transaction = self.pool.begin_with("BEGIN IMMEDIATE").await?;
+        sqlx::query("UPDATE cursor_usage_events SET pushed_at_ms = NULL")
+            .execute(&mut *transaction)
+            .await?;
+        sqlx::query("UPDATE local_agent_usage_events SET pushed_at_ms = NULL")
+            .execute(&mut *transaction)
+            .await?;
+        transaction.commit().await?;
+        Ok(())
     }
 
     /// Stores a pushed batch idempotently and refreshes the source registry.
@@ -291,6 +431,84 @@ mod tests {
         assert_eq!(models.len(), 1);
         assert_eq!(models[0].key, "openai-chat:gpt-test");
         assert_eq!(models[0].label, "GPT Test");
+    }
+
+    #[tokio::test]
+    async fn imported_history_is_exported_and_marked_idempotently() {
+        let store = store().await;
+        store
+            .replace_cursor_usage(&[crate::model::CursorUsageRecord {
+                event_key: "cursor:one".into(),
+                occurred_at_ms: 1_000,
+                model_key: "cursor-model".into(),
+                conversation_id: "conversation".into(),
+                input_tokens: 100,
+                output_tokens: 10,
+                cache_read_tokens: 20,
+                cache_write_tokens: 0,
+            }])
+            .await
+            .unwrap();
+        store
+            .upsert_local_agent_usage(&[crate::model::LocalAgentUsageRecord {
+                event_key: "codex:one".into(),
+                source: "codex".into(),
+                occurred_at_ms: 2_000,
+                model_key: "codex".into(),
+                input_tokens: 30,
+                output_tokens: 3,
+                cache_read_tokens: 40,
+                cache_write_tokens: 0,
+            }])
+            .await
+            .unwrap();
+
+        assert_eq!(store.pending_history_call_count().await.unwrap(), 2);
+        let pending = store.pending_history_collected_calls(10).await.unwrap();
+        assert_eq!(pending.len(), 2);
+        assert_eq!(pending[0].call.request_type, "cursor-history");
+        assert_eq!(pending[1].call.request_type, "local-agent-history");
+        store.mark_history_calls_pushed(&pending).await.unwrap();
+        assert_eq!(store.pending_history_call_count().await.unwrap(), 0);
+
+        store.reset_history_push_state().await.unwrap();
+        assert_eq!(store.pending_history_call_count().await.unwrap(), 2);
+    }
+
+    #[tokio::test]
+    async fn imported_history_uses_fresh_input_semantics_when_aggregated_remotely() {
+        let store = store().await;
+        store
+            .ingest_collected_calls(&OverviewIngestBatch {
+                source_id: "source-a".into(),
+                source_name: "Mac".into(),
+                calls: vec![CollectedCall {
+                    call_id: "cursor-history:one".into(),
+                    created_at_ms: 1_000,
+                    finished_at_ms: 1_000,
+                    request_type: "cursor-history".into(),
+                    model_key: "cursor-history:model".into(),
+                    display_name: "Cursor history".into(),
+                    status: "completed".into(),
+                    input_tokens: Some(100),
+                    output_tokens: Some(10),
+                    cache_read_tokens: Some(20),
+                    cache_write_tokens: Some(5),
+                }],
+            })
+            .await
+            .unwrap();
+
+        let metrics = store
+            .collected_overview(Some(0), Some(10_000), None, None)
+            .await
+            .unwrap()
+            .metrics;
+        assert_eq!(metrics.input_tokens, 100);
+        assert_eq!(metrics.cache_read_tokens, 20);
+        assert_eq!(metrics.cache_write_tokens, 5);
+        assert_eq!(metrics.prompt_tokens, 125);
+        assert_eq!(metrics.token_usage, 135);
     }
 
     #[tokio::test]

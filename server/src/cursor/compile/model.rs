@@ -5,6 +5,7 @@ use crate::{
         parse_token_count, ModelLatency, ModelSpec, ReasoningSpec, SubagentKind,
         SubagentModelOverride,
     },
+    store::Store,
     Error, Result,
 };
 
@@ -34,6 +35,23 @@ pub fn requested_model(request: &pb::AgentRunRequest) -> Result<ModelSpec> {
     } else {
         return Err(Error::Protocol("Cursor Run does not select a model".into()));
     };
+    Ok(model)
+}
+
+/// Resolves Cursor's model selection to the configured model hash before the
+/// model is used by the provider-independent run pipeline.
+pub async fn resolve_requested_model(
+    request: &pb::AgentRunRequest,
+    store: &Store,
+) -> Result<ModelSpec> {
+    let mut model = requested_model(request)?;
+    if let Some(configured) = store
+        .resolve_model(&model.model_id, request.conversation_id.as_deref())
+        .await?
+    {
+        model.model_id = configured.model_hash.clone();
+        configured.configure(&mut model);
+    }
     Ok(model)
 }
 
@@ -139,6 +157,34 @@ fn parse_bool(parameter: &pb::requested_model::ModelParameterValue) -> Result<bo
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::{ModelConfigInput, ModelType, OPENAI_CHAT_ENDPOINT};
+
+    fn model_input() -> ModelConfigInput {
+        ModelConfigInput {
+            sort_order: 0,
+            display_name: "Test Model".into(),
+            group_name: None,
+            model_type: ModelType::OpenAi,
+            base_url: "https://example.com/v1/chat/completions".into(),
+            use_full_url: true,
+            api_key: "test-key".into(),
+            tooltip_data: "Test Model".into(),
+            model_id: "test-model".into(),
+            reasoning_effort: None,
+            openai_endpoint: OPENAI_CHAT_ENDPOINT.into(),
+            openai_extra_params_enabled: false,
+            openai_extra_params: serde_json::json!({}),
+            custom_headers_enabled: false,
+            custom_headers: serde_json::json!({}),
+            anthropic_extra_params_enabled: false,
+            anthropic_extra_params: serde_json::json!({}),
+            context_window_tokens: None,
+            max_completion_tokens: None,
+            anthropic_max_tokens: None,
+            anthropic_thinking_effort: None,
+            thinking_budget_tokens: None,
+        }
+    }
 
     #[test]
     fn ignores_unknown_cursor_model_parameters() {
@@ -156,5 +202,54 @@ mod tests {
         assert_eq!(model.model_id, "test-model");
         assert_eq!(model.latency, ModelLatency::Standard);
         assert!(!model.reasoning.enabled);
+    }
+
+    #[tokio::test]
+    async fn resolves_cursor_model_alias_to_the_configured_hash() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Store::connect(&format!(
+            "sqlite://{}",
+            directory.path().join("test.db").display()
+        ))
+        .await
+        .unwrap();
+        let configured = store.create_model(&model_input()).await.unwrap();
+        let request = pb::AgentRunRequest {
+            conversation_id: Some("conversation".into()),
+            requested_model: Some(pb::RequestedModel {
+                model_id: "test-model".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let model = resolve_requested_model(&request, &store).await.unwrap();
+
+        assert_eq!(model.model_id, configured.model_hash);
+        assert_eq!(model.display_name.as_deref(), Some("Test Model"));
+    }
+
+    #[tokio::test]
+    async fn resolves_cursor_default_to_the_configured_hash() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Store::connect(&format!(
+            "sqlite://{}",
+            directory.path().join("test.db").display()
+        ))
+        .await
+        .unwrap();
+        let configured = store.create_model(&model_input()).await.unwrap();
+        let request = pb::AgentRunRequest {
+            conversation_id: Some("conversation".into()),
+            requested_model: Some(pb::RequestedModel {
+                model_id: "default".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let model = resolve_requested_model(&request, &store).await.unwrap();
+
+        assert_eq!(model.model_id, configured.model_hash);
     }
 }

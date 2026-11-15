@@ -171,6 +171,7 @@ async fn run_inference_append_streams_run_ready_over_sse() {
         })
         .await
         .unwrap();
+    let model_hash = model.model_hash.clone();
     let assets = PromptAssets::load(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("prompt/cursor")
@@ -189,7 +190,7 @@ async fn run_inference_append_streams_run_ready_over_sse() {
             ai::RunInferenceRunRequest {
                 conversation_id: "test-conversation".into(),
                 requested_model: Some(ai::InferenceRequestedModel {
-                    model_id: model.model_hash.clone(),
+                    model_id: "test-model".into(),
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -245,6 +246,10 @@ async fn run_inference_append_streams_run_ready_over_sse() {
     else {
         panic!("expected RunReady");
     };
+    assert_eq!(
+        run_ready.resolved_model.expect("resolved model").model_id,
+        model_hash
+    );
     let metadata = run_ready
         .prompt_model_metadata
         .expect("RunReady must carry prompt metadata for the managed local loop");

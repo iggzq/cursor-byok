@@ -62,7 +62,8 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable --now cursor-overview-collector
+systemctl enable cursor-overview-collector
+systemctl restart cursor-overview-collector
 sleep 2
 systemctl --no-pager --lines=15 status cursor-overview-collector || true
 echo

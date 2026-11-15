@@ -239,6 +239,8 @@ impl Store {
             token_usage_granularity,
             token_usage_series,
             device_count: 0,
+            cursor_history: None,
+            local_agent_history: None,
         })
     }
 }
@@ -301,7 +303,8 @@ fn token_usage_buckets(
 
 fn fresh_input_sql() -> &'static str {
     "CASE
-        WHEN request_type = 'anthropic' THEN MAX(0, COALESCE(input_tokens, 0))
+        WHEN request_type IN ('anthropic', 'cursor-history', 'local-agent-history')
+            THEN MAX(0, COALESCE(input_tokens, 0))
         ELSE MAX(0, COALESCE(input_tokens, 0)
             - COALESCE(cache_read_tokens, 0)
             - COALESCE(cache_write_tokens, 0))

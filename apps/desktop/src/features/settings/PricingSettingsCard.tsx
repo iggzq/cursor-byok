@@ -16,15 +16,16 @@ type PricingDraft = {
 
 function toDraft(pricing: TokenPricingSettings): PricingDraft {
   return {
-    input_per_million: String(pricing.input_per_million),
-    output_per_million: String(pricing.output_per_million),
-    cache_read_per_million: String(pricing.cache_read_per_million),
-    cache_write_per_million: String(pricing.cache_write_per_million),
+    input_per_million: String(pricing.input_per_million / 1_000_000),
+    output_per_million: String(pricing.output_per_million / 1_000_000),
+    cache_read_per_million: String(pricing.cache_read_per_million / 1_000_000),
+    cache_write_per_million: String(pricing.cache_write_per_million / 1_000_000),
   };
 }
 
 function formatPrice(value: number) {
-  return `$${value}`;
+  const perToken = value / 1_000_000;
+  return `¥${perToken.toFixed(8).replace(/0+$/, "").replace(/\.$/, "")}`;
 }
 
 function parsePrice(value: string, label: string) {
@@ -37,10 +38,10 @@ function parsePrice(value: string, label: string) {
 
 function toSettings(draft: PricingDraft): TokenPricingSettings {
   return {
-    input_per_million: parsePrice(draft.input_per_million, t("输入价格")),
-    output_per_million: parsePrice(draft.output_per_million, t("输出价格")),
-    cache_read_per_million: parsePrice(draft.cache_read_per_million, t("缓存读取价格")),
-    cache_write_per_million: parsePrice(draft.cache_write_per_million, t("缓存写入价格")),
+    input_per_million: parsePrice(draft.input_per_million, t("输入价格")) * 1_000_000,
+    output_per_million: parsePrice(draft.output_per_million, t("输出价格")) * 1_000_000,
+    cache_read_per_million: parsePrice(draft.cache_read_per_million, t("缓存读取价格")) * 1_000_000,
+    cache_write_per_million: parsePrice(draft.cache_write_per_million, t("缓存写入价格")) * 1_000_000,
   };
 }
 
@@ -99,10 +100,10 @@ export function PricingSettingsCard() {
   return (
     <TitledCard title={t("Token 定价")} action={action}>
       <div className={styles.content}>
-        <small>{t("用于首页价值估算的 Token 单价，单位：美元 / 百万 Token。")}</small>
+        <small>{t("用于首页价值估算的 Token 单价，单位：人民币 / Token。")}</small>
         {editing ? (
           <div className={styles.customFields}>
-            <FormField label={t("输入价格（$/1M）")}>
+            <FormField label={t("输入价格（¥/Token）")}>
               <TextInput
                 type="number"
                 min={0}
@@ -111,7 +112,7 @@ export function PricingSettingsCard() {
                 onChange={(event) => setDraft({ ...draft, input_per_million: event.target.value })}
               />
             </FormField>
-            <FormField label={t("输出价格（$/1M）")}>
+            <FormField label={t("输出价格（¥/Token）")}>
               <TextInput
                 type="number"
                 min={0}
@@ -120,7 +121,7 @@ export function PricingSettingsCard() {
                 onChange={(event) => setDraft({ ...draft, output_per_million: event.target.value })}
               />
             </FormField>
-            <FormField label={t("缓存读取价格（$/1M）")}>
+            <FormField label={t("缓存读取价格（¥/Token）")}>
               <TextInput
                 type="number"
                 min={0}
@@ -129,7 +130,7 @@ export function PricingSettingsCard() {
                 onChange={(event) => setDraft({ ...draft, cache_read_per_million: event.target.value })}
               />
             </FormField>
-            <FormField label={t("缓存写入价格（$/1M）")}>
+            <FormField label={t("缓存写入价格（¥/Token）")}>
               <TextInput
                 type="number"
                 min={0}
@@ -142,19 +143,19 @@ export function PricingSettingsCard() {
         ) : (
           <>
             <div className={styles.row}>
-              <strong>{t("输入价格（$/1M）")}</strong>
+              <strong>{t("输入价格（¥/Token）")}</strong>
               <span className={styles.value}>{formatPrice(pricing.input_per_million)}</span>
             </div>
             <div className={styles.row}>
-              <strong>{t("输出价格（$/1M）")}</strong>
+              <strong>{t("输出价格（¥/Token）")}</strong>
               <span className={styles.value}>{formatPrice(pricing.output_per_million)}</span>
             </div>
             <div className={styles.row}>
-              <strong>{t("缓存读取价格（$/1M）")}</strong>
+              <strong>{t("缓存读取价格（¥/Token）")}</strong>
               <span className={styles.value}>{formatPrice(pricing.cache_read_per_million)}</span>
             </div>
             <div className={styles.row}>
-              <strong>{t("缓存写入价格（$/1M）")}</strong>
+              <strong>{t("缓存写入价格（¥/Token）")}</strong>
               <span className={styles.value}>{formatPrice(pricing.cache_write_per_million)}</span>
             </div>
           </>

@@ -373,6 +373,38 @@ export interface Overview {
   token_usage_granularity: TokenUsageGranularity;
   token_usage_series: OverviewTokenUsageBucket[];
   device_count: number;
+  cursor_history: CursorHistoryUsage | null;
+  local_agent_history: LocalAgentHistoryUsage | null;
+}
+
+export interface CursorHistoryUsage {
+  calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  last_sync_at_ms: number | null;
+  token_usage_series: OverviewTokenUsageBucket[];
+}
+
+export interface LocalAgentHistoryUsage {
+  calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  last_sync_at_ms: number | null;
+  sources: LocalAgentUsageSource[];
+  token_usage_series: OverviewTokenUsageBucket[];
+}
+
+export interface LocalAgentUsageSource {
+  source: string;
+  calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
 }
 
 export type OverviewMode = "local" | "remote";
@@ -383,6 +415,21 @@ export interface OverviewSyncSettings {
   api_key: string;
   device_id: string;
   device_name: string;
+  include_cursor_history: boolean;
+}
+
+export interface CursorHistoryStatus {
+  included: boolean;
+  event_count: number;
+  last_sync_at_ms: number | null;
+  last_error: string | null;
+}
+
+export interface LocalAgentHistoryStatus {
+  event_count: number;
+  last_sync_at_ms: number | null;
+  last_error: string | null;
+  sources: LocalAgentUsageSource[];
 }
 
 export interface OverviewSyncStatus {
@@ -532,6 +579,10 @@ export const api = {
   overviewSyncStatus: () => request<OverviewSyncStatus>("/settings/overview-sync/status"),
   flushOverviewSync: () => request<OverviewSyncStatus>("/settings/overview-sync/flush", { method: "POST" }),
   resetOverviewSync: () => request<OverviewSyncStatus>("/settings/overview-sync/reset", { method: "POST" }),
+  cursorHistoryStatus: () => request<CursorHistoryStatus>("/settings/cursor-history"),
+  syncCursorHistory: () => request<CursorHistoryStatus>("/settings/cursor-history/sync", { method: "POST" }),
+  localAgentHistoryStatus: () => request<LocalAgentHistoryStatus>("/settings/local-agent-history"),
+  syncLocalAgentHistory: () => request<LocalAgentHistoryStatus>("/settings/local-agent-history/sync", { method: "POST" }),
   cursorHarness: () => request<CursorHarnessStatus>("/harness/cursor/status"),
   initializeCursorCa: () => request<CursorHarnessStatus>("/harness/cursor/ca/initialize", { method: "POST" }),
   plugins: () => request<PluginDescriptor[]>("/plugins"),

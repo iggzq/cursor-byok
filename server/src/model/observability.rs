@@ -265,13 +265,90 @@ mod overview {
         }
     }
 
-    #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
     pub struct Overview {
         pub metrics: OverviewMetrics,
         pub token_usage_granularity: TokenUsageGranularity,
         pub token_usage_series: Vec<TokenUsageBucket>,
         /// Number of machines contributing to a collected aggregate; 0 locally.
         pub device_count: i64,
+        /// Usage imported from the Cursor account, or `None` when the
+        /// `include_cursor_history` setting is off.
+        #[serde(default)]
+        pub cursor_history: Option<CursorHistoryUsage>,
+        /// Token usage read from local Codex and Claude session logs.
+        #[serde(default)]
+        pub local_agent_history: Option<LocalAgentHistoryUsage>,
+    }
+
+    /// Usage imported from the Cursor account usage API, reported next to the
+    /// aggregated totals instead of being mixed into them.
+    #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+    pub struct CursorHistoryUsage {
+        pub calls: i64,
+        pub input_tokens: i64,
+        pub output_tokens: i64,
+        pub cache_read_tokens: i64,
+        pub cache_write_tokens: i64,
+        pub last_sync_at_ms: Option<i64>,
+        /// Buckets aligned with the aggregate's own series so charts can add both.
+        pub token_usage_series: Vec<TokenUsageBucket>,
+    }
+
+    /// One `DashboardService/GetFilteredUsageEvents` display record.
+    ///
+    /// `input_tokens` excludes cache reads: the account API reports prompt, cache
+    /// and output tokens separately, unlike the provider payloads stored locally.
+    #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+    pub struct CursorUsageRecord {
+        pub event_key: String,
+        pub occurred_at_ms: i64,
+        pub model_key: String,
+        pub conversation_id: String,
+        #[serde(default)]
+        pub input_tokens: i64,
+        #[serde(default)]
+        pub output_tokens: i64,
+        #[serde(default)]
+        pub cache_read_tokens: i64,
+        #[serde(default)]
+        pub cache_write_tokens: i64,
+    }
+
+    #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+    pub struct LocalAgentHistoryUsage {
+        pub calls: i64,
+        pub input_tokens: i64,
+        pub output_tokens: i64,
+        pub cache_read_tokens: i64,
+        pub cache_write_tokens: i64,
+        pub last_sync_at_ms: Option<i64>,
+        pub sources: Vec<LocalAgentUsageSource>,
+        /// Buckets aligned with the aggregate's own series so charts can add both.
+        pub token_usage_series: Vec<TokenUsageBucket>,
+    }
+
+    #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+    pub struct LocalAgentUsageSource {
+        pub source: String,
+        pub calls: i64,
+        pub input_tokens: i64,
+        pub output_tokens: i64,
+        pub cache_read_tokens: i64,
+        pub cache_write_tokens: i64,
+    }
+
+    /// One token-bearing request extracted from a local agent session log.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct LocalAgentUsageRecord {
+        pub event_key: String,
+        pub source: String,
+        pub occurred_at_ms: i64,
+        pub model_key: String,
+        pub input_tokens: i64,
+        pub output_tokens: i64,
+        pub cache_read_tokens: i64,
+        pub cache_write_tokens: i64,
     }
 
     /// One finished call as pushed from a member machine to a collector.

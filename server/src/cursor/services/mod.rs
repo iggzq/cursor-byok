@@ -13,3 +13,4 @@ pub mod observability;
 pub mod server_config;
 pub mod tab;
 pub mod usage;
+pub mod usage_history;

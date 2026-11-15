@@ -41,6 +41,46 @@ impl Store {
             .transpose()
     }
 
+    /// Resolves Cursor model selections to a configured model. Cursor may send
+    /// either the stable model hash or the provider-facing `model_id` alias.
+    /// `default` means an internal turn without the user's selection.
+    pub async fn resolve_model(
+        &self,
+        model_id: &str,
+        conversation_id: Option<&str>,
+    ) -> Result<Option<ModelConfig>> {
+        if model_id != "default" {
+            if let Some(model) = self.model(model_id).await? {
+                return Ok(Some(model));
+            }
+            let query = format!(
+                "SELECT {MODEL_COLUMNS} FROM model_configs WHERE model_id = ? ORDER BY sort_order, display_name LIMIT 1"
+            );
+            return sqlx::query(&query)
+                .bind(model_id)
+                .fetch_optional(&self.pool)
+                .await?
+                .map(model_from_row)
+                .transpose();
+        }
+
+        if let Some(conversation_id) = conversation_id.filter(|value| !value.is_empty()) {
+            let model_hash = sqlx::query_scalar::<_, String>(
+                "SELECT model_hash FROM llm_calls WHERE conversation_id = ? AND model_hash IS NOT NULL ORDER BY created_at_ms DESC LIMIT 1",
+            )
+            .bind(conversation_id)
+            .fetch_optional(&self.pool)
+            .await?;
+            if let Some(model_hash) = model_hash {
+                if let Some(model) = self.model(&model_hash).await? {
+                    return Ok(Some(model));
+                }
+            }
+        }
+
+        Ok(self.models().await?.into_iter().next())
+    }
+
     pub async fn create_model(&self, input: &ModelConfigInput) -> Result<ModelConfig> {
         let mut models = self.create_models(std::slice::from_ref(input)).await?;
         Ok(models.remove(0))
@@ -338,6 +378,7 @@ fn to_i64(value: u64) -> Result<i64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::{NewLlmCall, ProviderType};
 
     fn model_input(group_name: Option<&str>) -> ModelConfigInput {
         ModelConfigInput {
@@ -397,5 +438,83 @@ mod tests {
             .unwrap();
         assert_eq!(cleared.model_hash, created.model_hash);
         assert_eq!(cleared.group_name, None);
+    }
+
+    #[tokio::test]
+    async fn default_model_uses_the_latest_conversation_model_then_falls_back() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Store::connect(&format!(
+            "sqlite://{}",
+            directory.path().join("test.db").display()
+        ))
+        .await
+        .unwrap();
+
+        let mut first_input = model_input(Some("First"));
+        first_input.display_name = "First".into();
+        first_input.model_id = "first-model".into();
+        let first = store.create_model(&first_input).await.unwrap();
+        let mut second_input = model_input(Some("Second"));
+        second_input.display_name = "Second".into();
+        second_input.model_id = "second-model".into();
+        let second = store.create_model(&second_input).await.unwrap();
+
+        store
+            .start_llm_call(&NewLlmCall {
+                call_id: "call".into(),
+                run_id: "run".into(),
+                conversation_id: "conversation".into(),
+                provider_call_index: 0,
+                model_hash: second.model_hash.clone(),
+                provider_type: ProviderType::OpenAiChat,
+                provider_url: "https://example.com".into(),
+                request_type: ProviderType::OpenAiChat,
+                request_url: "https://example.com".into(),
+                model_id: "second-model".into(),
+                display_name: "Second".into(),
+                reasoning_effort: None,
+                fast: false,
+                message_count: 1,
+                tool_count: 0,
+                detailed: false,
+            })
+            .await
+            .unwrap();
+
+        let resolved = store
+            .resolve_model("default", Some("conversation"))
+            .await
+            .unwrap()
+            .expect("conversation model");
+        assert_eq!(resolved.model_hash, second.model_hash);
+
+        let fallback = store
+            .resolve_model("default", Some("new-conversation"))
+            .await
+            .unwrap()
+            .expect("configured default model");
+        assert_eq!(fallback.model_hash, first.model_hash);
+    }
+
+    #[tokio::test]
+    async fn resolves_provider_model_id_alias_to_the_configured_hash() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Store::connect(&format!(
+            "sqlite://{}",
+            directory.path().join("test.db").display()
+        ))
+        .await
+        .unwrap();
+        let mut input = model_input(Some("Alias"));
+        input.model_id = "grok-4.7".into();
+        let configured = store.create_model(&input).await.unwrap();
+
+        let resolved = store
+            .resolve_model("grok-4.7", None)
+            .await
+            .unwrap()
+            .expect("provider model alias");
+
+        assert_eq!(resolved.model_hash, configured.model_hash);
     }
 }
