@@ -502,6 +502,50 @@ fn agent_system_prompt_is_static_and_substitutes_the_model_name() {
 }
 
 #[test]
+fn every_mode_uses_the_latest_cursor_grok_system_prompt() {
+    let assets = PromptAssets::load(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("prompt/cursor")
+            .as_path(),
+    )
+    .unwrap();
+    let compiler = PromptCompiler::new(assets);
+    for mode in [
+        Mode::Agent,
+        Mode::Ask,
+        Mode::Plan,
+        Mode::Debug,
+        Mode::Multitask,
+        Mode::Subagent,
+    ] {
+        let prompt = compiler
+            .prompt_spec(mode, &ModelSpec::new("model"), &[], false)
+            .unwrap()
+            .instructions;
+        for marker in [
+            "Communicate directly and concisely, in complete sentences.",
+            "<browser_verification>",
+            "<think>",
+            "<citing_code>",
+            "<terminal_files_information>",
+        ] {
+            assert!(
+                prompt.contains(marker),
+                "{mode:?} prompt is missing {marker}"
+            );
+        }
+        assert!(
+            !prompt.contains("<persistence>"),
+            "{mode:?} prompt must not include the non-Grok persistence variant"
+        );
+        assert!(
+            !prompt.contains("{{"),
+            "{mode:?} prompt has an unresolved placeholder"
+        );
+    }
+}
+
+#[test]
 fn subagent_uses_the_agent_prompt_and_only_the_captured_tool_delta() {
     let assets = PromptAssets::load(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
